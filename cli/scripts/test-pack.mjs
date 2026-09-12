@@ -148,6 +148,46 @@ try {
   }
   console.log("[test-pack] OK: installed scaffold uses agent-neutral branch guidance");
 
+  const gitModule = readFileSync(
+    path.join(target, ".agents", "modules", "git-substrate.md"), "utf8",
+  ).replace(/\r\n/g, "\n");
+  if (!/^> Version: 1\.3\.0\s*\|/m.test(gitModule)) {
+    throw new Error("installed git-substrate module must be version 1.3.0");
+  }
+  const isolation = gitModule.match(/^## §M-git-7\b([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1]
+    .replace(/[`*]/g, "").replace(/\s+/g, " ");
+  for (const contract of [
+    /Git repository.*explicit common.*<integration-base>/i,
+    /concurrent writer.*<agent-slug>.*AGENTS_MAP\.md.*PROJECT_RULES\.md.*§J8/i,
+    /distinct branch.*distinct working directory.*worktree.*clone/i,
+    /different branches.*shared checkout.*do not isolate.*filesystem edits/i,
+    /default branch.*integration-only.*only when.*policy.*protection.*PR.*exceptions/i,
+    /one writer.*serial handoffs.*non-Git projects.*no mandatory overhead/i,
+    /planning.*checkpoint.*review.*implementation.*same branch\/worktree.*serial.*prior writer pauses.*reviewed state remains stable.*generated files.*test runs.*coordinated/i,
+    /Never require.*per agent.*tool.*checkpoint.*task.*identities differ/i,
+    /optional detached.*fixed-commit review worktree.*implementation continues concurrently/i,
+    /not locks.*do not make acquisition atomic.*no global presence.*control plane/i,
+    /active_sessions\.md.*different branches.*not automatically.*synchronized/i,
+    /#5.*append-only merge\/integrity.*#19.*file locks.*neither/i,
+    /share Git objects\/refs.*isolate uncommitted directory state/i,
+    /external files.*services.*ports.*credentials.*storage.*shared/i,
+    /cleanup.*status.*no hard reset.*broad clean.*forced removal/i,
+  ]) {
+    if (!isolation || !contract.test(isolation)) {
+      throw new Error(`installed scaffold missing concurrent isolation contract: ${contract}`);
+    }
+  }
+  for (const writer of ["a", "b"]) {
+    for (const command of [
+      `git worktree add -b "<branch-${writer}>" "<directory-${writer}>" "<integration-base>"`,
+      `git clone "<repository-url>" "<clone-${writer}>"`,
+      `git -C "<clone-${writer}>" switch -c "<branch-${writer}>" "<integration-base>"`,
+    ]) {
+      if (!isolation.includes(command)) throw new Error(`installed scaffold missing example: ${command}`);
+    }
+  }
+  console.log("[test-pack] OK: installed git-substrate 1.3.0 includes concurrent isolation and serial opt-outs");
+
   console.log("[test-pack] OK: init created .agents/ and tagged CLAUDE.md / AGENTS.md");
 
   // Materialize the minimum project configuration required by the canonical

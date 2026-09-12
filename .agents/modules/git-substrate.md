@@ -1,6 +1,6 @@
 # modules/git-substrate.md — Git / pull-request substrate rules
 
-> Version: 1.2.2 | Updated: 2026-07-20 | Protocol: Lead Protocol v2.0.1+
+> Version: 1.3.0 | Updated: 2026-09-12 | Protocol: Lead Protocol v2.0.1+
 > Scope: Opt-in module. Activate via `PROJECT_RULES.md §J8 Active modules: git-substrate`.
 > Applies to: repositories hosted on a git platform with pull-request support (GitHub, GitLab, Bitbucket, etc.).
 
@@ -65,6 +65,55 @@ All session-close state must be committed on the **feature branch** before the p
 **Reviewer signal:** if a PR modifies only project-layer state files (`JOURNAL.md`, `LESSONS.md`, `decisions.jsonl`) and the description explains it as a post-merge closeout, flag the PR. The correct fix is to reopen the feature branch with the state files included and re-merge.
 
 **Interaction with §M-git-1:** project-layer state files (`JOURNAL.md`, `LESSONS.md`, `decisions.jsonl`) normally allow direct commit without branching. §M-git-6 does not override that — it restricts **when** that direct commit may happen relative to PR lifecycle. When a PR is open for branched work, write your state to the feature branch before merge, not directly to the default branch after.
+
+## §M-git-7 — Concurrent writers: branch and directory isolation
+
+**Prerequisites:** a Git repository and an explicit common `<integration-base>` (prefer a fixed commit ID available to every writer). This guidance is opt-in with this module; it adds no activation requirement for other substrates.
+
+Each concurrent writer must resolve `<agent-slug>` through `.agents/AGENTS_MAP.md`, follow the branch convention in `.agents/PROJECT_RULES.md §J8`, and own a distinct branch and a distinct working directory via Git worktree or separate clone. Different branches in one shared checkout do not isolate concurrent filesystem edits: switching branches changes the same directory beneath every process using it. Writers with the same mapped slug still need distinct branch names when working concurrently.
+
+Treat the default branch as integration-only **only when** project policy, branch protection, or the PR requirements in §M-git-2 require it. Preserve the direct-commit exceptions in §M-git-1 and §M-git-2 where those requirements do not apply.
+
+For one writer, serial handoffs, and non-Git projects, this section adds **no mandatory overhead**. Planning → checkpoint → review → implementation, or implementer → reviewer for the same task, may remain in the same branch/worktree if the handoff is serial, the prior writer pauses, the reviewed state remains stable, and generated files from test runs are coordinated. Never require a worktree per agent, tool, checkpoint, or task merely because identities differ. An optional detached, fixed-commit review worktree can preserve the reviewed state if implementation continues concurrently; coordinate shared resources even then.
+
+### Examples (substitute placeholders before running)
+
+Choose `<branch-a>` and `<branch-b>` as distinct names under §J8 (for example, `<agent-slug>/<description>` with different descriptions). Choose distinct, unused `<directory-a>` and `<directory-b>` paths outside the current checkout. From the existing repository, create both branches from the same explicit base:
+
+```text
+git worktree add -b "<branch-a>" "<directory-a>" "<integration-base>"
+git worktree add -b "<branch-b>" "<directory-b>" "<integration-base>"
+```
+
+Run each writer and its commands in its assigned directory. Alternatively, use two separate clones at distinct, unused paths; the same `<integration-base>` commit must be available in both clones:
+
+```text
+git clone "<repository-url>" "<clone-a>"
+git -C "<clone-a>" switch -c "<branch-a>" "<integration-base>"
+git clone "<repository-url>" "<clone-b>"
+git -C "<clone-b>" switch -c "<branch-b>" "<integration-base>"
+```
+
+For the optional concurrent review, use an unused directory and the exact commit being reviewed:
+
+```text
+git worktree add --detach "<review-directory>" "<review-commit>"
+```
+
+### Isolation limits and cleanup
+
+Worktrees are **not locks**, do not make acquisition atomic, and provide no global presence or control plane. `.agents/sessions/active_sessions.md` on different branches is not automatically global or synchronized; coordinate explicitly rather than assuming one branch's registry sees all writers. Issue #5 concerns append-only merge/integrity; issue #19 concerns file locks. This section implements neither mechanism.
+
+Worktrees share Git objects/refs but isolate uncommitted directory state. External files, services, ports, credentials, and storage may remain shared; coordinate their use separately. Separate clones also need this external-resource coordination.
+
+Before cleanup, stop processes using the directory and verify status, including tracked, untracked, and ignored files. Preserve useful work and confirm nothing needed exists only there. Use no hard reset, broad clean, or forced removal. For each worktree, inspect first, then remove only after verification:
+
+```text
+git -C "<directory-a>" status --short --untracked-files=all --ignored
+git worktree remove "<directory-a>"
+```
+
+Repeat for the other worktree or optional review directory after its own verification. If removal refuses, investigate; do not force it. For clones, apply the same status and preservation checks before removing only the intended directory through your platform's normal file operations.
 
 ## Optional tooling that ships with the template
 
