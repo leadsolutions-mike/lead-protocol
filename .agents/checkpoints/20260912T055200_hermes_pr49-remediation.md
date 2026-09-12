@@ -2,7 +2,7 @@
 > Session: 2026-09-12-0544-hermes
 > Timestamp: 2026-09-12 05:52
 > Author: [Mike / Hermes]
-> Status: PENDING
+> Status: APPROVED
 
 ## Open question
 Does the remediation identify only canonical populated handoff fields, excluding fenced Open Threads examples, while preserving pristine skips and malformed-file reporting across LF and CRLF?
@@ -18,5 +18,11 @@ Does the remediation identify only canonical populated handoff fields, excluding
 ## Current recommendation
 Commit the narrow parser/test/decision change with this PENDING checkpoint, then have Claude Code Opus independently review the exact commit and run adversarial checks before finalizing the checkpoint. Preserve the current PR and attribution; do not merge, release, close issues/PRs, or alter upstream settings.
 
-## What specifically needs second-opinion
-Adversarially test whether parser-derived pristine detection can still accept a fenced example as an actual field when canonical fields are absent or duplicated, and confirm every caller preserves malformed handoff reporting when `isPristineHandoff` invokes parsing internally. Verify exact LF/CRLF coverage and no Python-validator scope expansion.
+## Adversarial review and verification
+- Claude Code [Mike / Claude] independently reviewed exact commit `39da121^..39da121` read-only and returned `APPROVED`.
+- Claude verified focused validate tests `11/11`, full `npm test` `40/40`, typecheck, build, packed-install lifecycle smoke, diff check, decisions JSONL schema, caller coverage, and exact four-file commit list.
+- No blocking findings. Non-blocking: a contrived missing canonical header can still let a fenced header supply the parser's Version/Updated field (pre-existing behavior, not introduced here), and pristine detection now performs one redundant parse in callers.
+- Hermes independently confirmed `ALL_GATES_PASS` for focused tests, full suite, typecheck, build, pack smoke, and diff check.
+
+## Final recommendation
+The bounded PR49 remediation is approved for push and review response. Keep the Python validator parity follow-up, merge, release, issue/PR closure, and upstream settings outside this change.
