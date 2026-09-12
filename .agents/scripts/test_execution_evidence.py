@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Portable schema contract; no changes to the legacy Python handoff parser."""
 import json
 import re

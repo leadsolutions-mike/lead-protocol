@@ -258,10 +258,8 @@ try {
   writeFileSync(evidenceFile, JSON.stringify(evidence));
   const opened = JSON.parse(capture("evidence session open", `node ${q(bin)} session open --actor judge --agent codex --topic "Evidence roundtrip" --json`, { cwd: target }));
   const checkpoint = JSON.parse(capture("evidence checkpoint", `node ${q(bin)} checkpoint --actor judge --agent codex --title evidence-roundtrip --file ${q(checkpointBody)} --evidence ${q(evidenceFile)} --json`, { cwd: target }));
-  if (JSON.stringify(evidenceLib.parseEvidenceMarkdown(readFileSync(checkpoint.checkpoint, "utf8"), schemasDir).checks) !== JSON.stringify(evidence.checks)) {
-    // JSON key ordering is canonicalized; compare canonical rendering instead.
-    if (evidenceLib.renderEvidenceMarkdown(evidenceLib.parseEvidenceMarkdown(readFileSync(checkpoint.checkpoint, "utf8"), schemasDir)) !== evidenceLib.renderEvidenceMarkdown(evidence)) throw new Error("installed checkpoint lost evidence");
-  }
+  const parsedCheckpoint = evidenceLib.parseEvidenceMarkdown(readFileSync(checkpoint.checkpoint, "utf8"), schemasDir);
+  if (evidenceLib.renderEvidenceMarkdown(parsedCheckpoint) !== evidenceLib.renderEvidenceMarkdown(evidence)) throw new Error("installed checkpoint lost evidence");
   const registry = path.join(target, ".agents/sessions/active_sessions.md");
   const handoffPath = path.join(target, ".agents/local/judge/codex/handoff.md");
   const beforeInvalid = [readFileSync(registry, "utf8"), readFileSync(handoffPath, "utf8"), readdirSync(receipts).join(",")];

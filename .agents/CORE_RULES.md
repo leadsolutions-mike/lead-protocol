@@ -1,6 +1,6 @@
 # CORE_RULES.md — Rules index and essential contracts
 
-> Version: 1.6.0 | Updated: 2026-09-12 | Protocol: Lead Protocol v2.0.0
+> Version: 1.6.0 | Updated: 2026-09-12 | Protocol: Lead Protocol v2.1.0
 
 This file is the first thing every agent reads. It is deliberately short: just the index into `PROTOCOL_RULES.md`, the essential contracts an agent must obey at every session start, and the precedence rule. It never duplicates the kernel — only points at it.
 
