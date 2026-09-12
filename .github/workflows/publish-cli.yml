@@ -1,4 +1,5 @@
 name: Publish CLI to npm
+run-name: Publish CLI ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
 
 on:
   release:
@@ -6,11 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Existing release tag to publish
+        description: Existing stable release tag (run this workflow from the same tag ref)
         required: true
-        type: choice
-        options:
-          - v2.1.2
+        type: string
 
 permissions:
   contents: read
@@ -28,6 +27,13 @@ jobs:
       TARGET_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
 
     steps:
+      - name: Validate stable release ref
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$TARGET_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          [[ "$GITHUB_REF" == "refs/tags/${TARGET_TAG}" ]]
+
       - name: Check out the immutable release tag
         uses: actions/checkout@v4
         with:
@@ -50,20 +56,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$TARGET_TAG" != "v2.1.2" ]]; then
-            echo "::error::Manual publication is restricted to v2.1.2"
-            exit 1
-          fi
-
-          checked_out_tag="$(git describe --tags --exact-match HEAD)"
-          package_version="$(node -p "require('./cli/package.json').version")"
-          release_draft="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TARGET_TAG}" --jq '.draft')"
-
-          [[ "$checked_out_tag" == "$TARGET_TAG" ]]
-          [[ "v${package_version}" == "$TARGET_TAG" ]]
-          [[ "$release_draft" == "false" ]]
-
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TARGET_TAG}" > "$RUNNER_TEMP/release.json"
+          remote_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TARGET_TAG}" --jq '.sha')"
+          node cli/scripts/verify-published-release.mjs release "$TARGET_TAG" "$remote_sha" "$RUNNER_TEMP/release.json"
+          node cli/scripts/check-release-metadata.mjs "${TARGET_TAG#v}" --source-only
           node --version
           npm --version
 
@@ -75,9 +71,31 @@ jobs:
         run: |
           npm run typecheck
           npm test
+          node --test test/published-release.test.mjs
           npm run test:pack
+          node scripts/check-release-metadata.mjs "${TARGET_TAG#v}"
+        working-directory: cli
+
+      - name: Recheck release identity before publication
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TARGET_TAG}" > "$RUNNER_TEMP/release.json"
+          remote_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TARGET_TAG}" --jq '.sha')"
+          node cli/scripts/verify-published-release.mjs release "$TARGET_TAG" "$remote_sha" "$RUNNER_TEMP/release.json"
+
+      - name: Check whether this exact version is already published
+        id: registry
+        run: node scripts/verify-published-release.mjs probe "$TARGET_TAG" "$GITHUB_SHA"
         working-directory: cli
 
       - name: Publish with npm trusted publishing
+        if: steps.registry.outputs.status == 'absent'
         run: npm publish --access public --provenance
+        working-directory: cli
+
+      - name: Verify registry provenance and exact consumer installation
+        run: node scripts/verify-published-release.mjs verify "$TARGET_TAG" "$GITHUB_SHA"
         working-directory: cli

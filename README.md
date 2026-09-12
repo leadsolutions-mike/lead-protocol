@@ -4,7 +4,11 @@
 
 When one AI coding session ends, it records what it did, what remains, and why it made the calls it made. The next session — in the same tool or a different one, minutes or days later — can read that state and continue from there.
 
-> Current version: **2.1.4**
+> Current version: **2.1.5**
+
+This version identifies the stable release represented by this source. For an
+installation, use a published release and confirm its package is available;
+release preparation and a merge do not by themselves confirm delivery.
 
 ---
 
@@ -112,7 +116,7 @@ Lead Protocol fills the operational-state slot in the broader agent stack:
 ```bash
 # Clone the latest stable release
 # Check https://github.com/mmilanez/lead-protocol/releases for the current version number
-git clone --branch v2.1.4 --depth 1 https://github.com/mmilanez/lead-protocol.git /tmp/lp
+git clone --branch v2.1.5 --depth 1 https://github.com/mmilanez/lead-protocol.git /tmp/lp
 
 # Copy the scaffold into your project
 cp -R /tmp/lp/.agents   your-project/.agents
@@ -132,7 +136,7 @@ python .agents/scripts/validate_state.py
 ```powershell
 # Clone the latest stable release
 # Check https://github.com/mmilanez/lead-protocol/releases for the current version number
-git clone --branch v2.1.4 --depth 1 https://github.com/mmilanez/lead-protocol.git $env:TEMP\lp
+git clone --branch v2.1.5 --depth 1 https://github.com/mmilanez/lead-protocol.git $env:TEMP\lp
 
 # Copy the scaffold into your project
 Copy-Item -Recurse $env:TEMP\lp\.agents   your-project\.agents
@@ -170,14 +174,14 @@ kernel only from `PROTOCOL_RULES.md`.
 The optional CLI turns the boot and close contract into three commands:
 
 ```bash
-npx @leadsolutions/lead-protocol@2.1.4 session open \
+npx @leadsolutions/lead-protocol@2.1.5 session open \
   --actor judge --agent codex --topic "Try the lifecycle" --json
 
 echo "A self-contained checkpoint body" | \
-  npx @leadsolutions/lead-protocol@2.1.4 checkpoint \
+  npx @leadsolutions/lead-protocol@2.1.5 checkpoint \
     --actor judge --agent codex --title first-checkpoint --json
 
-npx @leadsolutions/lead-protocol@2.1.4 session close \
+npx @leadsolutions/lead-protocol@2.1.5 session close \
   --actor judge --agent codex \
   --journal not-significant --status stable \
   --last-action "Verified the lifecycle." --pending-step None \
@@ -185,7 +189,7 @@ npx @leadsolutions/lead-protocol@2.1.4 session close \
 
 # Start a clean second session. The JSON receipt includes the terminal handoff
 # from the first session under `previousHandoff`, proving immediate resume.
-npx @leadsolutions/lead-protocol@2.1.4 session open \
+npx @leadsolutions/lead-protocol@2.1.5 session open \
   --actor judge --agent codex --topic "Resume from prior handoff" --json
 ```
 
@@ -219,7 +223,7 @@ interrupted operations. Codex and the maintainer turned those findings into
 public fixes and regression tests.
 
 That hardening first shipped in `v2.1.2` and remains part of the current
-`v2.1.4` release. `v2.1.1` is immutable and does not contain those fixes. The
+`v2.1.5` release. `v2.1.1` is immutable and does not contain those fixes. The
 model configuration, Codex thread ID, findings, and validation are recorded in
 the [public adversarial review](docs/build-week-2026/gpt-5.6-lifecycle-review.md).
 
@@ -234,12 +238,19 @@ commands remain pre-existing work.
 
 ## Installing a specific version
 
-`main` is the development branch and may contain in-progress work. **Do not install directly from `main`.** Always install from a published release.
+Public `main` receives reviewed, release-prepared changes. Publication and
+installed-package verification run after integration, so a merged PR alone is
+not evidence that its npm version is available. **Do not install directly from
+`main`.** Install from a published release with successful publication results.
+See [CONTRIBUTING.md](CONTRIBUTING.md#review-process) for this product's release
+workflow.
 
 Available versions are listed on the [Releases page](https://github.com/mmilanez/lead-protocol/releases). Versions follow [SemVer](https://semver.org):
 
 - **`vX.Y.Z`** (no suffix) — stable release, recommended for production use
 - **`vX.Y.Z-alpha.N` / `-beta.N` / `-rc.N`** — pre-releases, for preview and testing only
+
+The automated release train currently publishes stable `X.Y.Z` versions only.
 
 ### Alternative — download the release archive
 
@@ -249,7 +260,11 @@ For Windows PowerShell, use equivalent `Copy-Item` commands and run the same val
 
 ### Checking which version you have
 
-`.agents/PROTOCOL_RULES.md` records the **kernel** version (the framework rules). A patch release may leave the kernel untouched — for example, release `2.0.1` ships kernel `2.0.0` because it only fixed tooling and docs. So the kernel version is a floor, not the release number. The exact release you installed is the one named in the top entry of [`CHANGELOG.md`](CHANGELOG.md); compare it against the [Version history](#version-history) table below.
+Run `lead-protocol status` or read `.agents/manifest.json` for the installed
+product and kernel versions. The kernel may remain unchanged across product
+releases. Match the product version to its published release and versioned
+[`CHANGELOG.md`](CHANGELOG.md) entry; an `Unreleased` entry describes pending
+work and is not an installed release identifier.
 
 ### Release notes and migration
 
@@ -323,6 +338,7 @@ Patch bumps (Z) never break anything. Minor bumps (Y) may introduce new features
 
 | Version | Highlights |
 |---|---|
+| **2.1.5** | Corrects CLI validation of populated handoffs containing placeholder examples (#49), keeps SPDX identifiers consistent, includes the fast-uri lockfile update (#48), and verifies immutable npm publication plus installed consumer behavior. Kernel remains 2.0.2. |
 | **2.1.4** | Adds explicit installed product/kernel identity through `.agents/manifest.json`, corrects human and JSON status reporting with a safe legacy fallback, and reconciles branch-ordering prose with the backward-compatible eight-item handoff checklist. Kernel 2.0.2; git-substrate module 1.2.2. |
 | **2.1.3** | Corrects generic AI branch provenance across the source scaffold and the npm-installed CLI template: AI branches use the mapped `<agent-slug>/<description>` convention, package smoke coverage verifies the installed `init` output, and CLI CI now runs whenever bundled scaffold inputs change. |
 | **2.1.2** | Publishes the Codex/GPT-5.6 transactional hardening from public PR #34: validate close fields before mutation, serialize cooperating lifecycle operations, strengthen receipt ownership and rollback, preserve peer rows byte-for-byte, and prevent live source state from leaking into packaged templates. |

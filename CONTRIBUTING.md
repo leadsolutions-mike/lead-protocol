@@ -34,6 +34,10 @@ Open an issue with the `enhancement` label. Describe:
 4. **Test** your changes locally
 5. **Open a Pull Request** against `main` with a clear description of what and why
 
+Maintainers select the release version and prepare release metadata after the
+contribution is reviewed. Reference the related issue without closing keywords;
+delivery issues stay open until the published package has been verified.
+
 ### Commit messages
 
 For human contributors, use clear conventional commit messages:
@@ -57,7 +61,7 @@ AI agents working on this repo follow the `[Agent] <type>: <summary>` convention
 - Documentation improvements (typos, clarity, examples)
 - Test coverage for existing functionality
 - Integrations with new AI coding agents or IDEs
-- Design input on the planned CLI and MCP server (open an issue to discuss)
+- Improvements to the shipped Node.js CLI and design input on the planned MCP server (open an issue to discuss)
 
 ### Please avoid
 
@@ -90,10 +94,16 @@ If your contribution touches the `.agents/` directory:
 
 ## Review process
 
-1. A maintainer will review your PR within a few days
-2. Feedback may be requested — this is normal and collaborative
-3. Once approved, a maintainer will merge your PR
-4. Your contribution will be credited in the git history
+1. A maintainer reviews the exact PR changes and relevant tests; feedback may be requested.
+2. Technical acceptance is followed by release preparation. The maintainer selects the release batch and stable version, prepares its metadata and notes, and validates the final package before public merge.
+3. The original contribution PR remains the merge vehicle. Release-preparation commits retain their own attribution, and the contributor's authorship and PR link are preserved. If maintainers cannot update the contribution branch, they coordinate with the contributor before proceeding.
+4. Owner approval of the prepared release authorizes automated delivery of its exact contents. Required checks must pass on the final candidate before merge; changed contents require renewed review.
+5. Automation tags the exact public merge, publishes the GitHub Release and matching npm package with provenance, and verifies a clean installation. Related delivery issues close only after that verification succeeds.
+
+Publication takes time after merge. A merged PR alone does not mean its package
+is available: use the release and publication results to check delivery. Failed
+delivery remains open for recovery without replacing an existing tag or package.
+The automated release train currently supports stable `X.Y.Z` versions only.
 
 ---
 
@@ -107,7 +117,9 @@ Finished artifacts (schemas, scripts, module files, documentation) are then publ
 - The private workspace carries the real operational history.
 - Contributors never see private operational state; they see only the polished product.
 
-This is the recommended pattern for any team that wants to use Lead Protocol to develop Lead Protocol — or any other protocol-governed project where operational history is private.
+This describes how the Lead Protocol product is maintained. Projects adopting
+the protocol choose their own development and release workflows; this product's
+approval and publication automation is not a universal protocol requirement.
 
 ---
 
