@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -21,6 +21,14 @@ function fixture(handoff) {
 
 function validate(root) {
   return execFileSync(
+    process.execPath,
+    [bin, "validate", "--schemas-dir", schemasDir],
+    { cwd: root, encoding: "utf8" },
+  );
+}
+
+function validateResult(root) {
+  return spawnSync(
     process.execPath,
     [bin, "validate", "--schemas-dir", schemasDir],
     { cwd: root, encoding: "utf8" },
@@ -78,6 +86,75 @@ ${checklist}`);
     const output = validate(root);
     assert.match(output, /pristine template \(skipped\)/);
     assert.match(output, /0 passed, 1 skipped/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+const fencedIdentityExamples = {
+  Updated: "> Version: 2.0 | Updated: YYYY-MM-DD",
+  "Last Agent": "**Last Agent:** [Your Agent Signature]",
+};
+
+for (const [identity, example] of Object.entries(fencedIdentityExamples)) {
+  for (const [lineEnding, newline] of [["LF", "\n"], ["CRLF", "\r\n"]]) {
+    for (const validity of ["valid", "invalid"]) {
+      test(`validate reports ${validity} populated handoff with fenced ${identity} example (${lineEnding})`, () => {
+        const status = validity === "valid" ? "STABLE" : "NOT_A_STATUS";
+        const handoff = `# handoff.md — Current operational state
+> Version: 2.0 | Updated: 2026-09-10
+
+**Last Agent:** [Mike / Codex]
+**Timestamp:** 2026-09-10 06:15
+**Status:** ${status}
+**Last Action:** Added an identity-field example.
+**Pending Step:** None
+**Blockers/Context:** None
+**Open Threads:** Documentation example follows:
+\`\`\`markdown
+${example}
+\`\`\`
+${checklist}`.replaceAll("\n", newline);
+        const root = fixture(handoff);
+
+        try {
+          const result = validateResult(root);
+          assert.doesNotMatch(result.stdout, /pristine template|skipped/);
+          if (validity === "valid") {
+            assert.equal(result.status, 0, result.stdout + result.stderr);
+            assert.match(result.stdout, /1 passed/);
+          } else {
+            assert.equal(result.status, 1, result.stdout + result.stderr);
+            assert.match(result.stdout, /must be equal to one of the allowed values/);
+          }
+        } finally {
+          rmSync(root, { recursive: true, force: true });
+        }
+      });
+    }
+  }
+}
+
+test("validate reports malformed populated handoff even when fenced content contains a pristine identity example", () => {
+  const root = fixture(`# handoff.md — Current operational state
+> Version: 2.0 | Updated: 2026-09-10
+
+**Last Agent:** [Mike / Codex]
+**Status:** STABLE
+**Last Action:** Added an example.
+**Pending Step:** None
+**Blockers/Context:** None
+**Open Threads:** Documentation example follows:
+\`\`\`markdown
+**Last Agent:** [Your Agent Signature]
+\`\`\`
+${checklist}`);
+
+  try {
+    const result = validateResult(root);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.doesNotMatch(result.stdout, /pristine template|skipped/);
+    assert.match(result.stdout, /parse error — missing field: Timestamp/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
