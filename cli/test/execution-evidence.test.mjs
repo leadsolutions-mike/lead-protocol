@@ -36,3 +36,19 @@ test('canonical JSON is deterministic, safe, lossless and parsable without dupli
   for (const text of [rendered + rendered, '## Execution Evidence\n\n```json\n{broken}\n```', '## Execution Evidence\nmissing JSON', '## Execution Evidence\n\n```json\n{"execution_evidence":{"typo":1}}\n```']) assert.throws(() => parseEvidenceMarkdown(text, schemas), /evidence/i);
   assert.throws(() => parseCloseReceiptEvidence({ execution_evidence: null }, schemas), /evidence/i);
 });
+
+test('illustrative closeout and checkpoint examples cover all statuses and reproducible references', () => {
+  const rules = readFileSync(new URL('../../.agents/PROTOCOL_RULES.md', import.meta.url), 'utf8');
+  const examples = [...rules.matchAll(/```json\n([\s\S]*?)\n```/g)].map(m => JSON.parse(m[1])).filter(v => v.execution_evidence);
+  assert.equal(examples.length, 2, 'one illustrative closeout and one checkpoint example');
+  for (const { execution_evidence: value } of examples) {
+    validateEvidence(value, schemas);
+    assert.deepEqual(new Set(value.checks.map(c => c.result)), new Set(['passed', 'failed', 'not_run', 'blocked']));
+    for (const field of ['branch', 'commit']) assert.ok(value.git[field]);
+    for (const field of ['runtime', 'cwd', 'ci_run', 'package_manager']) assert.ok(value.environment[field]);
+    assert.ok(value.checks.some(c => c.artifact));
+    assert.ok(value.browser_validation.evidence);
+  }
+  assert.match(rules, /optional globally/i);
+  assert.match(rules, /must not be marked complete solely because files were changed/i);
+});
