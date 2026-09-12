@@ -16,6 +16,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { findAgentsDir } from "./project.js";
+import { validateEvidence, parseEvidenceMarkdown, renderEvidenceMarkdown, type ExecutionEvidence } from "./execution-evidence.js";
 import { parseHandoffMd } from "./handoff-parser.js";
 
 export class LifecycleError extends Error {
@@ -287,8 +288,8 @@ function activeReceipt(receipts: string, registry: ActiveSession[], pair: PairId
 
 export type LifecycleFaultPoint = "before-open-registry-write" | "before-open-receipt-write" | "before-checkpoint-registry-write" | "before-close-handoff-write" | "before-close-receipt-write" | "before-close-registry-write";
 export type OpenSessionOptions = { actor?: string; agent?: string; signature?: string; toolSignature?: string; topic: string; now?: Date; faultInjector?: (point: LifecycleFaultPoint) => void };
-export type CheckpointOptions = { actor?: string; agent?: string; signature?: string; toolSignature?: string; title: string; body: string; now?: Date; faultInjector?: (point: LifecycleFaultPoint) => void };
-export type CloseSessionOptions = { actor?: string; agent?: string; signature?: string; toolSignature?: string; journal: "significant" | "not-significant"; journalEntryConfirmed?: boolean; status: "STABLE" | "BLOCKED"; lastAction: string; pendingStep: string; blockers?: string; openThreads?: string; confirmChecklist: boolean; now?: Date; faultInjector?: (point: LifecycleFaultPoint) => void };
+export type CheckpointOptions = { evidence?: ExecutionEvidence; actor?: string; agent?: string; signature?: string; toolSignature?: string; title: string; body: string; now?: Date; faultInjector?: (point: LifecycleFaultPoint) => void };
+export type CloseSessionOptions = { evidence?: ExecutionEvidence; actor?: string; agent?: string; signature?: string; toolSignature?: string; journal: "significant" | "not-significant"; journalEntryConfirmed?: boolean; status: "STABLE" | "BLOCKED"; lastAction: string; pendingStep: string; blockers?: string; openThreads?: string; confirmChecklist: boolean; now?: Date; faultInjector?: (point: LifecycleFaultPoint) => void };
 
 function openSessionUnlocked(opts: OpenSessionOptions): OpenReceipt {
   const agentsDir = findAgentsDir();
@@ -364,13 +365,17 @@ function openSessionUnlocked(opts: OpenSessionOptions): OpenReceipt {
 
 function createCheckpointUnlocked(opts: CheckpointOptions) {
   const agentsDir = findAgentsDir(); if (!agentsDir) throw new LifecycleError("could not locate .agents directory", 2);
+  const schemas = path.join(agentsDir, "schemas");
+  const embedded = parseEvidenceMarkdown(opts.body, schemas);
+  if (embedded !== undefined && opts.evidence !== undefined) throw new LifecycleError("Supply execution evidence in the body or option, not both", 2);
+  const evidence = opts.evidence === undefined ? undefined : validateEvidence(opts.evidence, schemas);
   const now = opts.now ?? new Date(); const pair = resolvePair(opts, agentsDir, now); const paths = pairPaths(agentsDir, pair);
   const registryPath = path.join(agentsDir, "sessions", "active_sessions.md"); const before = readFileSync(registryPath, "utf8");
   const receipt = activeReceipt(paths.receipts, parseActiveSessions(before), pair);
   const slug = assertSegment(opts.title, "title"); const name = `${utcCompact(now)}_${pair.agent}_${slug}.md`;
   const target = path.resolve(agentsDir, "checkpoints", name); const root = path.resolve(agentsDir, "checkpoints") + path.sep;
   if (!target.startsWith(root)) throw new LifecycleError("unsafe checkpoint path", 2);
-  const content = `# Checkpoint — ${slug}\n\n> Timestamp: ${now.toISOString()}\n> Agent: ${receipt.pair.signature}\n> Actor: ${pair.actor}\n> Session: \`${receipt.sessionId}\`\n\n${opts.body.replace(/^\s+|\s+$/g, "")}\n`;
+  const content = `# Checkpoint — ${slug}\n\n> Timestamp: ${now.toISOString()}\n> Agent: ${receipt.pair.signature}\n> Actor: ${pair.actor}\n> Session: \`${receipt.sessionId}\`\n\n${opts.body.replace(/^\s+|\s+$/g, "")}\n${evidence === undefined ? "" : renderEvidenceMarkdown(evidence)}`;
   writeExclusiveFile(target, content);
   const after = mutateRegistry(before, (rows) => rows.map((r) => r.sessionId === receipt.sessionId ? { ...r, checkpoint: name } : r));
   try { opts.faultInjector?.("before-checkpoint-registry-write"); atomicCompareReplace(registryPath, before, after, receipt.sessionId); }
@@ -385,6 +390,7 @@ function createCheckpointUnlocked(opts: CheckpointOptions) {
 
 function closeSessionUnlocked(opts: CloseSessionOptions) {
   const agentsDir = findAgentsDir(); if (!agentsDir) throw new LifecycleError("could not locate .agents directory", 2);
+  const evidence = opts.evidence === undefined ? undefined : validateEvidence(opts.evidence, path.join(agentsDir, "schemas"));
   const now = opts.now ?? new Date(); const pair = resolvePair(opts, agentsDir, now); const paths = pairPaths(agentsDir, pair);
   if (!opts.confirmChecklist) throw new LifecycleError("close requires --confirm-checklist after verifying all conditional close obligations");
   if (opts.journal === "significant" && !opts.journalEntryConfirmed) throw new LifecycleError("significant close requires --journal-entry-confirmed");
@@ -403,11 +409,12 @@ function closeSessionUnlocked(opts: CloseSessionOptions) {
   handoffAfter = setField(handoffAfter, "Status", opts.status);
   handoffAfter = setField(handoffAfter, "Last Action", safeCell(opts.lastAction, "last action"));
   handoffAfter = setField(handoffAfter, "Pending Step", safeCell(opts.pendingStep, "pending step"));
-  handoffAfter = setField(handoffAfter, "Blockers/Context", safeCell(opts.blockers ?? "None", "blockers"));
+  const evidenceReferences = evidence === undefined ? "" : `; Execution evidence receipt: .agents/local/${pair.actor}/${pair.agent}/receipts/${receipt.sessionId}-close.json${ownedRow.checkpoint === "—" ? "" : `; Checkpoint: .agents/checkpoints/${ownedRow.checkpoint}`}`;
+  handoffAfter = setField(handoffAfter, "Blockers/Context", safeCell((opts.blockers ?? "None") + evidenceReferences, "blockers"));
   handoffAfter = setField(handoffAfter, "Open Threads", safeCell(opts.openThreads ?? "None", "open threads"));
   handoffAfter = handoffAfter.replace(/^> Version: (\S+) \| Updated: \S+$/m, `> Version: $1 | Updated: ${now.toISOString().slice(0, 10)}`);
   handoffAfter = handoffAfter.replace(/^- \[[ xX]\]/gm, "- [x]");
-  const closeReceipt = { schemaVersion: 1, operation: "session.close", timestamp: now.toISOString(), pair: receiptPair, sessionId: receipt.sessionId, journal: opts.journal, validation: { handoff: "passed", decisions: "passed", checklist: "passed" } };
+  const closeReceipt = { ...(evidence === undefined ? {} : { execution_evidence: evidence, ...(ownedRow.checkpoint === "—" ? {} : { checkpoint: ownedRow.checkpoint }) }), schemaVersion: 1, operation: "session.close", timestamp: now.toISOString(), pair: receiptPair, sessionId: receipt.sessionId, journal: opts.journal, validation: { handoff: "passed", decisions: "passed", checklist: "passed" } };
   const closeReceiptPath = path.join(paths.receipts, `${receipt.sessionId}-close.json`);
   if (existsSync(closeReceiptPath)) throw new LifecycleError(`close receipt already exists: ${closeReceiptPath}`);
   let handoffCommitted = false;
