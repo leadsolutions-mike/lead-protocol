@@ -40,7 +40,7 @@ test('canonical JSON is deterministic, safe, lossless and parsable without dupli
 for (const [lineEnding, newline] of [['LF', '\n'], ['CRLF', '\r\n']]) {
   test(`illustrative closeout and checkpoint examples cover all statuses and reproducible references (${lineEnding})`, () => {
     const rules = readFileSync(new URL('../../.agents/PROTOCOL_RULES.md', import.meta.url), 'utf8').replace(/\r?\n/g, newline);
-    const examples = [...rules.matchAll(/```json\n([\s\S]*?)\n```/g)].map(m => JSON.parse(m[1])).filter(v => v.execution_evidence);
+    const examples = [...rules.matchAll(/```json\r?\n([\s\S]*?)\r?\n```/g)].map(m => JSON.parse(m[1])).filter(v => v.execution_evidence);
     assert.equal(examples.length, 2, 'one illustrative closeout and one checkpoint example');
     for (const { execution_evidence: value } of examples) {
       validateEvidence(value, schemas);
