@@ -102,11 +102,49 @@ lead-protocol init --yes  # Skip confirmation
 ```
 
 What it does:
-- Copies `.agents/` with all protocol files (rules, schemas, scripts, modules)
+- Installs `.agents/` framework and project seeds (actor-local state is never seeded or written)
 - Creates `CLAUDE.md` and `AGENTS.md` with `<lead-protocol>` tagged boot procedures
 - Creates `.gitignore` with the protocol entries if none exists, or appends any missing ones if it already exists
 
-If Lead Protocol is already installed, you'll be asked before overwriting. Existing content in `CLAUDE.md` / `AGENTS.md` outside the `<lead-protocol>` tags is always preserved.
+Any existing `.agents` entry blocks init, including partial or malformed installations;
+`--yes` only skips the confirmation prompt. Use `update` to preserve project state.
+Explicit `init --force` overlays bundled framework and project seeds, preserving
+`.agents/local/` and files absent from the bundle. It does not delete orphan files.
+Use force only when deliberately resetting project seeds.
+
+### `update`
+
+```bash
+lead-protocol update --dry-run  # Inspect without writes
+lead-protocol update            # Confirm before applying
+lead-protocol update --yes      # Apply without prompting
+```
+
+Updates the nearest installation to the framework bundled with this CLI:
+`CORE_RULES.md`, `PROTOCOL_RULES.md`, `manifest.json`, `modules/`, `schemas/`,
+and `scripts/`. Existing project state (including checkpoints, sessions and the
+agent map) stays byte-identical; missing project seeds are created. Actor-local
+state is never scanned, seeded or written. Framework orphans are reported and
+never deleted. Partial pre-manifest installs can be repaired by update.
+
+Both init and update refresh the first complete `<lead-protocol>` block in
+`CLAUDE.md` / `AGENTS.md`, preserving every byte outside it; when no complete
+block exists they append one without trimming user content. Missing protocol
+`.gitignore` entries are appended. Repeated updates skip identical files.
+Dry-run preflights these paths too and writes nothing; its per-file listing
+covers `.agents`, with guideline blocks and `.gitignore` refreshed on apply.
+
+All planned source/destination paths and existing ancestors are checked before
+writes. Symbolic links on these paths, malformed file/directory types, and links
+inside framework directories are refused without replacement or deletion.
+A malformed nearest `.agents` entry fails instead of selecting a parent install.
+Links inside actor-local state are left alone. This is static path validation,
+not protection against concurrent filesystem replacement or hard-link aliases.
+Multi-file writes are not transactional: permission changes, disk exhaustion or
+other I/O failures during application can leave a partial update.
+
+Based on Leonardo Buares's [PR #26](https://github.com/mmilanez/lead-protocol/pull/26),
+with current-main integration and safety fixes for issues #25 and #40.
 
 ### `handoff`
 

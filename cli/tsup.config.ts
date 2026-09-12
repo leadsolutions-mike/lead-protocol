@@ -2,6 +2,7 @@ import { defineConfig } from "tsup";
 
 export default defineConfig({
   entry: {
+    "lib/updater": "src/lib/updater.ts",
     index: "src/index.ts",
     "lib/session-lifecycle": "src/lib/session-lifecycle.ts",
   },
