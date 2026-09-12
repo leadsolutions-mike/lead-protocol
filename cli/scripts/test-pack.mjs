@@ -22,6 +22,7 @@ import {
   readFileSync,
   readdirSync,
   existsSync,
+  statSync,
 } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -257,6 +258,29 @@ try {
   const evidence = { checks: [{ command: "installed lifecycle fixture", cwd: target, result: "not_run", reason: "Illustrative roundtrip payload; not a claim of separate command execution" }], environment: { runtime: process.version, cwd: target } };
   writeFileSync(evidenceFile, JSON.stringify(evidence));
   const opened = JSON.parse(capture("evidence session open", `node ${q(bin)} session open --actor judge --agent codex --topic "Evidence roundtrip" --json`, { cwd: target }));
+  const quotedBody = ['Legacy freeform examples', '````markdown', '## Execution Evidence', '```json', '{"execution_evidence":{}}', '```', '````', '~~~~', '## Execution Evidence', 'placeholder', '~~~~'].join("\r\n");
+  const quotedFile = path.join(target, "quoted-body.md");
+  writeFileSync(quotedFile, quotedBody);
+  const schemaFile = path.join(schemasDir, "execution-evidence.schema.json");
+  const schemaBytes = readFileSync(schemaFile);
+  rmSync(schemaFile);
+  const quotedArgs = [bin, "checkpoint", "--actor", "judge", "--agent", "codex", "--title", "quoted-example", "--file", quotedFile, "--json"];
+  const quotedProcess = spawnSync(process.execPath, quotedArgs, { cwd: target, encoding: "utf8" });
+  if (quotedProcess.status !== 0) throw new Error(`installed CLI rejected legacy fences: ${quotedProcess.stderr}`);
+  const quotedCheckpoint = JSON.parse(quotedProcess.stdout);
+  const quotedSaved = readFileSync(quotedCheckpoint.checkpoint, "utf8");
+  const expectedQuoted = `# Checkpoint — quoted-example\n\n> Timestamp: ${quotedCheckpoint.timestamp}\n> Agent: ${opened.pair.signature}\n> Actor: judge\n> Session: \`${opened.sessionId}\`\n\n${quotedBody}\n`;
+  if (quotedSaved !== expectedQuoted || evidenceLib.parseEvidenceMarkdown(quotedSaved, schemasDir) !== undefined) throw new Error("installed CLI changed legacy body or extracted fake evidence");
+  writeFileSync(schemaFile, schemaBytes);
+  const stateSnapshot = () => listRelativeEntries(path.join(target, ".agents")).filter(name => !statSync(path.join(target, ".agents", name)).isDirectory()).map(name => [name, readFileSync(path.join(target, ".agents", name)).toString("base64")]);
+  const beforeMalformed = JSON.stringify(stateSnapshot());
+  writeFileSync(quotedFile, quotedBody + "\n## Execution Evidence\nmissing JSON");
+  const malformedProcess = spawnSync(process.execPath, quotedArgs, { cwd: target, encoding: "utf8" });
+  if (malformedProcess.status === 0 || !/Malformed execution evidence/.test(malformedProcess.stderr)) throw new Error("installed CLI accepted malformed real section");
+  if (JSON.stringify(stateSnapshot()) !== beforeMalformed) throw new Error("malformed real section mutated installed project state");
+  console.log("[test-pack] OK: schema-free fenced legacy bytes preserved; malformed real section refused without state change");
+  // Quoted examples must also coexist with explicitly supplied real evidence.
+  writeFileSync(checkpointBody, quotedBody);
   const checkpoint = JSON.parse(capture("evidence checkpoint", `node ${q(bin)} checkpoint --actor judge --agent codex --title evidence-roundtrip --file ${q(checkpointBody)} --evidence ${q(evidenceFile)} --json`, { cwd: target }));
   const parsedCheckpoint = evidenceLib.parseEvidenceMarkdown(readFileSync(checkpoint.checkpoint, "utf8"), schemasDir);
   if (evidenceLib.renderEvidenceMarkdown(parsedCheckpoint) !== evidenceLib.renderEvidenceMarkdown(evidence)) throw new Error("installed checkpoint lost evidence");

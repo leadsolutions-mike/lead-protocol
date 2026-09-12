@@ -471,3 +471,16 @@ test('legacy omission preserves exact checkpoint and receipt shapes without need
     assert.deepEqual(closeSession({ ...closeOptions, now }), { schemaVersion: 1, operation: 'session.close', timestamp: now.toISOString(), pair: opened.pair, sessionId: opened.sessionId, journal: 'not-significant', validation: { handoff: 'passed', decisions: 'passed', checklist: 'passed' } });
   });
 });
+
+for (const newline of ['\n', '\r\n']) {
+  test(`legacy fenced body preserves exact checkpoint bytes without a schema (${JSON.stringify(newline)})`, async () => {
+    await inFixture({}, root => {
+      rmSync(path.join(root, '.agents/schemas/execution-evidence.schema.json'));
+      const now = new Date('2026-07-18T08:00:00.000Z');
+      const opened = openSession({ actor: 'marco', agent: 'codex', topic: 'Legacy fences', now });
+      const body = ['Legacy  body', '', '````markdown', '## Execution Evidence', '```json', '{"execution_evidence":{}}', '```', '````', '', '~~~', '## Execution Evidence', 'placeholder', '~~~'].join(newline);
+      const checkpoint = createCheckpoint({ actor: 'marco', agent: 'codex', title: 'legacy-fences', body, now });
+      assert.equal(readFileSync(checkpoint.checkpoint, 'utf8'), `# Checkpoint — legacy-fences\n\n> Timestamp: ${now.toISOString()}\n> Agent: ${opened.pair.signature}\n> Actor: marco\n> Session: \`${opened.sessionId}\`\n\n${body}\n`);
+    });
+  });
+}

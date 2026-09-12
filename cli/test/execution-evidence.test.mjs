@@ -52,3 +52,36 @@ test('illustrative closeout and checkpoint examples cover all statuses and repro
   assert.match(rules, /optional globally/i);
   assert.match(rules, /must not be marked complete solely because files were changed/i);
 });
+
+for (const newline of ['\n', '\r\n']) {
+  for (const fence of ['```', '~~~', '````', '~~~~~']) {
+    test(`quoted evidence stays illustrative (${JSON.stringify(fence)}, ${JSON.stringify(newline)})`, () => {
+      const fake = renderEvidenceMarkdown({ unresolved: ['illustrative only'] });
+      // Shorter/mixed inner fences and a non-closing suffix must not close the outer fence.
+      const quoted = [`   ${fence}markdown`, '## Execution Evidence', 'placeholder', '```json', '{"execution_evidence":{}}', '```', `${fence} trailing`, fake, ` ${fence}${fence[0]}\t`].join('\n').replace(/\n/g, newline);
+      // With a three-backtick outer fence, use a plain heading example instead of same-length nesting.
+      const body = fence === '```' ? '```markdown\n## Execution Evidence\nplaceholder\n```'.replace(/\n/g, newline) : quoted;
+      assert.equal(parseEvidenceMarkdown(body, '/missing-schema'), undefined);
+      const real = { checks: [{ command: 'actual', result: 'failed' }] };
+      const canonical = renderEvidenceMarkdown(real).replace(/\n/g, newline);
+      assert.deepEqual(parseEvidenceMarkdown(body + newline + canonical, schemas), real);
+      assert.deepEqual(parseEvidenceMarkdown(canonical + newline + body, schemas), real);
+      assert.throws(() => parseEvidenceMarkdown(body + newline + '## Execution Evidence\nmissing JSON', schemas), /Malformed execution evidence/);
+      assert.throws(() => parseEvidenceMarkdown(body + newline + canonical + canonical, schemas), /Duplicate execution evidence/);
+    });
+  }
+}
+
+test('unclosed fences hide examples; invalid backtick opener does not hide a real malformed section', () => {
+  for (const fence of ['````', '~~~~']) {
+    assert.equal(parseEvidenceMarkdown(`${fence}markdown\n\`\`\`\n## Execution Evidence\nplaceholder`, '/missing-schema'), undefined);
+  }
+  assert.throws(() => parseEvidenceMarkdown('```invalid`info\n## Execution Evidence\nplaceholder', schemas), /Malformed execution evidence/);
+});
+
+for (const fence of ['````', '~~~~']) {
+  test(`a single nested canonical example is never extracted as evidence (${fence})`, () => {
+    const body = `${fence}markdown\n${renderEvidenceMarkdown({ unresolved: ['fake evidence'] })}${fence}\n`;
+    assert.equal(parseEvidenceMarkdown(body, schemas), undefined);
+  });
+}
