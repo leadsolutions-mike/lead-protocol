@@ -12,7 +12,8 @@
 // Note: installing the tarball downloads `dependencies` from the registry, so
 // this needs network access (just like a real `npm install` / `npx`).
 
-import { execSync } from "node:child_process";
+import assert from "node:assert/strict";
+import { execFileSync, execSync } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
@@ -162,27 +163,41 @@ try {
   );
 
   run("validate", `node ${q(bin)} validate`, { cwd: target });
-  const humanStatus = capture("status", `node ${q(bin)} status`, { cwd: target });
-  if (!humanStatus.includes("Product Version") || !humanStatus.includes(installedPackage.version)) {
-    throw new Error("human status does not report the installed product version");
+  // Invoke the installed artifact directly, with native paths and no shell.
+  function assertStatus(cwd, project, productVersion, expectedKernel) {
+    const invoke = (...args) => {
+      const output = execFileSync(process.execPath, [bin, "status", ...args], {
+        cwd, encoding: "utf8", env: { ...process.env, NO_COLOR: "1", FORCE_COLOR: "0" },
+      });
+      assert.doesNotMatch(output, /\x1b/, "no ANSI escapes in no-color output");
+      return output.replace(/\r\n/g, "\n");
+    };
+    assert.deepEqual(JSON.parse(invoke("--json")), {
+      project,
+      productVersion,
+      kernelVersion: expectedKernel,
+      protocolVersion: expectedKernel,
+      activeSessions: 0,
+      pairs: [],
+      recentDecisions: [],
+    });
+    const human = invoke();
+    const lines = human.split("\n");
+    const first = lines.findIndex((line) => line.trim() !== "");
+    assert.equal(lines[first], `Lead Protocol ${productVersion} — ${project}`);
+    assert.equal(lines[first + 1], `  Kernel: ${expectedKernel} (technical detail)`);
+    assert.doesNotMatch(human, /Product Version|Kernel Version|Protocol Version/);
+    assert.match(human, /No sessions recorded yet/);
+    assert.match(human, /No decisions recorded yet/);
+    assert.match(human, /Active Sessions:\s+0/);
   }
-  if (!humanStatus.includes("Kernel Version") || !humanStatus.includes(kernelVersion)) {
-    throw new Error("human status does not report the installed kernel version");
-  }
-  if (humanStatus.includes("Protocol Version")) throw new Error("human status still uses the ambiguous Protocol Version label");
-  const pristineStatus = JSON.parse(capture("status --json", `node ${q(bin)} status --json`, { cwd: target }));
-  if (pristineStatus.productVersion !== installedPackage.version || pristineStatus.kernelVersion !== kernelVersion) {
-    throw new Error(`JSON status version identity mismatch: ${JSON.stringify(pristineStatus)}`);
-  }
-  if (pristineStatus.protocolVersion !== kernelVersion) {
-    throw new Error("JSON status backward-compatible protocolVersion alias does not identify the kernel");
-  }
-  if (pristineStatus.activeSessions !== 0) {
-    throw new Error(`fresh install inherited ${pristineStatus.activeSessions} active session(s)`);
-  }
-  if (pristineStatus.recentDecisions.length !== 0) {
-    throw new Error(`fresh install inherited ${pristineStatus.recentDecisions.length} decision(s)`);
-  }
+  assertStatus(target, "Package smoke", installedPackage.version, kernelVersion);
+
+  // A consumer scaffold can differ from the CLI that happens to inspect it.
+  const differentProduct = installedPackage.version === "7.8.9" ? "7.8.10" : "7.8.9";
+  writeFileSync(installedManifestPath, JSON.stringify({ ...installedManifest, product_version: differentProduct }));
+  assertStatus(target, "Package smoke", differentProduct, kernelVersion);
+  writeFileSync(installedManifestPath, JSON.stringify(installedManifest));
   const pristineCheckpoints = readdirSync(path.join(target, ".agents", "checkpoints")).filter((name) => name !== ".gitkeep");
   if (pristineCheckpoints.length !== 0) {
     throw new Error(`fresh install inherited ${pristineCheckpoints.length} checkpoint(s)`);
@@ -195,20 +210,19 @@ try {
 
   const legacyTarget = path.join(tmp, "legacy-project");
   mkdirSync(legacyTarget);
-  run("legacy init --yes", `node ${q(bin)} init --yes`, { cwd: legacyTarget });
-  rmSync(path.join(legacyTarget, ".agents", "manifest.json"));
-  const legacyJson = JSON.parse(capture("legacy status --json", `node ${q(bin)} status --json`, { cwd: legacyTarget }));
-  const legacyHuman = capture("legacy status", `node ${q(bin)} status`, { cwd: legacyTarget });
-  if (legacyJson.productVersion !== "unknown" || legacyJson.kernelVersion !== kernelVersion) {
-    throw new Error(`legacy fallback version identity mismatch: ${JSON.stringify(legacyJson)}`);
+  execFileSync(process.execPath, [bin, "init", "--yes"], { cwd: legacyTarget, stdio: "pipe" });
+  const legacyManifestPath = path.join(legacyTarget, ".agents", "manifest.json");
+  rmSync(legacyManifestPath);
+  assertStatus(legacyTarget, "Unknown Project", "unknown", kernelVersion);
+  console.log("[test-pack] OK: legacy status preserves complete JSON and human hierarchy");
+
+  for (const invalidManifest of ["{ invalid", JSON.stringify({ ...installedManifest, product_version: "invalid" })]) {
+    writeFileSync(legacyManifestPath, invalidManifest);
+    assertStatus(legacyTarget, "Unknown Project", "unknown", kernelVersion);
   }
-  if (legacyJson.protocolVersion !== kernelVersion) {
-    throw new Error("legacy JSON protocolVersion alias does not identify the kernel");
-  }
-  if (legacyHuman.includes("Protocol Version") || legacyHuman.includes("1.5.0")) {
-    throw new Error("legacy fallback misreports CORE_RULES 1.5.0 as protocol identity");
-  }
-  console.log("[test-pack] OK: pre-manifest fallback reports unknown product and the actual kernel");
+  writeFileSync(path.join(legacyTarget, ".agents", "PROTOCOL_RULES.md"), "> Version: invalid | Updated: 2026-06-01\r\n");
+  assertStatus(legacyTarget, "Unknown Project", "unknown", "unknown");
+  console.log("[test-pack] OK: pristine, differing-product, legacy, and invalid-manifest status contracts");
 
   // 5. Exercise the exact installed lifecycle binary without rebuilding.
   run(

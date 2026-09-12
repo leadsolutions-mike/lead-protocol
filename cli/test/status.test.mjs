@@ -8,71 +8,79 @@ import { fileURLToPath } from "node:url";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const bin = path.resolve(testDir, "..", "dist", "index.js");
+const manifest = { manifest_version: 1, product_version: "7.8.9", kernel_version: "2.0.1" };
+const decision = { timestamp: "2026-06-01T12:00:00", agent: "[Fixture]", decision: "Preserve this decision", status: "completed" };
 
-function fixture({ manifest = true } = {}) {
+function fixture(manifestText, header, eol) {
   const root = mkdtempSync(path.join(os.tmpdir(), "lp-status-"));
   const agents = path.join(root, ".agents");
+  const write = (file, text) => writeFileSync(path.join(agents, file), text.replace(/\n/g, eol));
   mkdirSync(path.join(agents, "sessions"), { recursive: true });
-  writeFileSync(path.join(agents, "CORE_RULES.md"), "> Version: 1.5.0 | Protocol: Lead Protocol v2.0.0\n");
-  writeFileSync(path.join(agents, "PROTOCOL_RULES.md"), "> Version: 2.0.1 | Updated: 2026-06-01\n");
-  writeFileSync(path.join(agents, "PROJECT_RULES.md"), "# PROJECT_RULES.md — Status fixture\n\n- **Name:** Status fixture\n");
-  writeFileSync(path.join(agents, "decisions.jsonl"), "");
-  writeFileSync(path.join(agents, "sessions", "active_sessions.md"), "| Session ID | Agent | Started | Topic | Last checkpoint |\n|---|---|---|---|---|\n");
-  if (manifest) {
-    writeFileSync(path.join(agents, "manifest.json"), JSON.stringify({
-      manifest_version: 1,
-      product_version: "2.1.3",
-      kernel_version: "2.0.1",
-    }));
-  }
+  mkdirSync(path.join(agents, "local", "fixture", "codex"), { recursive: true });
+  write("CORE_RULES.md", "> Version: 1.5.0 | Protocol: Lead Protocol v2.0.0\n");
+  if (header !== null) write("PROTOCOL_RULES.md", header);
+  write("PROJECT_RULES.md", "# PROJECT_RULES.md — Status fixture\n\n- **Name:** Status fixture\n");
+  write("decisions.jsonl", `${JSON.stringify(decision)}\n`);
+  write(path.join("local", "fixture", "codex", "handoff.md"), "Unparseable handoff\n");
+  write(path.join("sessions", "active_sessions.md"), "| Session ID | Agent | Started | Topic | Last checkpoint |\n|---|---|---|---|---|\n| fixture-session | codex | 2026-06-01 | Status | — |\n");
+  if (manifestText !== null) write("manifest.json", manifestText);
   return root;
 }
 
 function status(root, ...args) {
-  return execFileSync(process.execPath, [bin, "status", ...args], { cwd: root, encoding: "utf8" });
+  const output = execFileSync(process.execPath, [bin, "status", ...args], {
+    cwd: root, encoding: "utf8", env: { ...process.env, NO_COLOR: "1", FORCE_COLOR: "0" },
+  });
+  assert.doesNotMatch(output, /\x1b/, "no ANSI escapes in no-color output");
+  return output.replace(/\r\n/g, "\n");
 }
 
-test("status reports explicit product and kernel versions in JSON and human output", () => {
-  const root = fixture();
-  try {
-    const json = JSON.parse(status(root, "--json"));
-    assert.equal(json.productVersion, "2.1.3");
-    assert.equal(json.kernelVersion, "2.0.1");
-    assert.equal(json.protocolVersion, "2.0.1");
-    const human = status(root);
-    assert.match(human, /Product Version:\s+2\.1\.3/);
-    assert.match(human, /Kernel Version:\s+2\.0\.1/);
-    assert.doesNotMatch(human, /Protocol Version/);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
+const manifests = [
+  ["valid", JSON.stringify(manifest), "7.8.9"],
+  ["absent", null, "unknown"],
+  ["malformed JSON", "{ invalid", "unknown"],
+  ["invalid schema version", JSON.stringify({ ...manifest, manifest_version: 2 }), "unknown"],
+  ["missing field", JSON.stringify({ manifest_version: 1, product_version: "7.8.9" }), "unknown"],
+  ["invalid field type", JSON.stringify({ ...manifest, product_version: 789 }), "unknown"],
+  ["invalid product semver", JSON.stringify({ ...manifest, product_version: "7.8" }), "unknown"],
+  ["invalid kernel semver", JSON.stringify({ ...manifest, kernel_version: "invalid" }), "unknown"],
+];
+const headers = [
+  ["matching header", "> Version: 2.0.1 | Updated: 2026-06-01\n", "2.0.1"],
+  ["divergent header", "> Version: 3.4.5 | Updated: 2026-06-01\n", "3.4.5"],
+  ["absent header", null, null],
+  ["invalid header", "> Version: invalid | Updated: 2026-06-01\n", null],
+];
 
-test("legacy scaffold without manifest reports unknown product and parses only kernel header", () => {
-  const root = fixture({ manifest: false });
-  try {
-    const json = JSON.parse(status(root, "--json"));
-    assert.equal(json.productVersion, "unknown");
-    assert.equal(json.kernelVersion, "2.0.1");
-    assert.equal(json.protocolVersion, "2.0.1");
-    const human = status(root);
-    assert.match(human, /Product Version:\s+unknown/);
-    assert.match(human, /Kernel Version:\s+2\.0\.1/);
-    assert.doesNotMatch(human, /Protocol Version|1\.5\.0/);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
+for (const [manifestName, manifestText, productVersion] of manifests) {
+  for (const [headerName, header, explicitKernel] of headers) {
+    for (const eol of ["\n", "\r\n"]) {
+      test(`status: ${manifestName}, ${headerName}, ${eol === "\n" ? "LF" : "CRLF"}`, () => {
+        const root = fixture(manifestText, header, eol);
+        const kernelVersion = explicitKernel ?? (manifestName === "valid" ? "2.0.1" : "unknown");
+        try {
+          assert.deepEqual(JSON.parse(status(root, "--json")), {
+            project: "Status fixture",
+            productVersion,
+            kernelVersion,
+            protocolVersion: kernelVersion,
+            activeSessions: 1,
+            pairs: [{ actor: "fixture", agent: "codex", parseError: true }],
+            recentDecisions: [decision],
+          });
+          const human = status(root);
+          const lines = human.split("\n");
+          const first = lines.findIndex((line) => line.trim() !== "");
+          assert.equal(lines[first], `Lead Protocol ${productVersion} — Status fixture`);
+          assert.equal(lines[first + 1], `  Kernel: ${kernelVersion} (technical detail)`);
+          assert.doesNotMatch(human, /Product Version|Kernel Version|Protocol Version|1\.5\.0/);
+          assert.match(human, /fixture\/codex — could not parse handoff/);
+          assert.match(human, /Recent Decisions\n\s+2026-06-01  Preserve this decision/);
+          assert.match(human, /Active Sessions:\s+1/);
+        } finally {
+          rmSync(root, { recursive: true, force: true });
+        }
+      });
+    }
   }
-});
-
-test("invalid manifest falls back safely without consulting CORE_RULES version", () => {
-  const root = fixture();
-  try {
-    writeFileSync(path.join(root, ".agents", "manifest.json"), "{ invalid");
-    const json = JSON.parse(status(root, "--json"));
-    assert.equal(json.productVersion, "unknown");
-    assert.equal(json.kernelVersion, "2.0.1");
-    assert.equal(json.protocolVersion, "2.0.1");
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
+}

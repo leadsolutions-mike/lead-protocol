@@ -155,8 +155,9 @@ export function registerStatusCommand(program: Command): void {
 
       console.log();
       console.log(
-        ui.heading(`Lead Protocol Status — ${projectName}`),
+        ui.heading(`Lead Protocol ${productVersion} — ${projectName}`),
       );
+      console.log(ui.dim(`  Kernel: ${kernelVersion} (technical detail)`));
       console.log();
 
       // Handoffs
@@ -216,12 +217,6 @@ export function registerStatusCommand(program: Command): void {
 
       console.log();
       console.log(ui.label("  Active Sessions", String(activeSessions)));
-      console.log(
-        ui.label("  Product Version", productVersion),
-      );
-      console.log(
-        ui.label("  Kernel Version", kernelVersion),
-      );
       console.log();
     });
 }

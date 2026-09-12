@@ -158,16 +158,27 @@ That's it. Read the sections below or browse [`.agents/CORE_RULES.md`](.agents/C
 `.agents/manifest.json` is the machine-readable identity of the installed
 scaffold. `product_version` is the exact Lead Protocol release that produced
 the scaffold; `kernel_version` identifies the shipped `PROTOCOL_RULES.md`
-contract. `lead-protocol status` reports these separately as **Product
-Version** and **Kernel Version**, including in JSON as `productVersion` and
-`kernelVersion`.
+contract. `lead-protocol status` leads with the installed scaffold's product
+version and project name, immediately followed by the secondary kernel detail:
+
+```text
+Lead Protocol <productVersion> — <projectName>
+  Kernel: <kernelVersion> (technical detail)
+```
+
+This hierarchy remains readable without color. The running CLI binary's version
+is never substituted for the installed scaffold's product version.
 
 Framework files remain independently versioned. A Markdown header's `Version:`
 is the revision of that document or component, while `Protocol:` compatibility
 metadata describes the supported kernel floor or range. Neither value is a
-substitute for the manifest's exact product release. On an older installation
-without a manifest, status reports Product Version as `unknown` and reads the
-kernel only from `PROTOCOL_RULES.md`.
+substitute for the manifest's exact product release. A missing or invalid
+manifest leaves the product as literal `unknown`. Kernel identity comes from a
+valid `PROTOCOL_RULES.md` version header, falling back to a valid manifest's
+`kernel_version`, then `unknown` if neither is available.
+
+JSON output is unchanged: `productVersion` and `kernelVersion` remain separate,
+and `protocolVersion` remains a deprecated compatibility alias of `kernelVersion`.
 
 ## Executable session lifecycle
 
@@ -260,9 +271,14 @@ For Windows PowerShell, use equivalent `Copy-Item` commands and run the same val
 
 ### Checking which version you have
 
-Run `lead-protocol status` or read `.agents/manifest.json` for the installed
-product and kernel versions. The kernel may remain unchanged across product
-releases. Match the product version to its published release and versioned
+Run `lead-protocol status`: the first non-empty line shows the installed
+scaffold's product version and project; the next line shows the kernel as a
+technical detail. You can also read `.agents/manifest.json`. The CLI binary's
+version does not replace the scaffold identity, and an unavailable product
+version stays `unknown`. Use `lead-protocol status --json` for the unchanged
+machine-readable fields and fallbacks described above. The kernel may remain
+unchanged across product releases. Match the product version to its published
+release and versioned
 [`CHANGELOG.md`](CHANGELOG.md) entry; an `Unreleased` entry describes pending
 work and is not an installed release identifier.
 
