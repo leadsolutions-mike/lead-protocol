@@ -509,6 +509,12 @@ for (const [label, body] of [
       assert.ok(failure, 'writer must refuse unsafe explicit evidence composition');
       assert.match(failure.message, /evidence/i);
       assert.deepEqual(stateSnapshot(root), before);
+      // An existing guard must not mask the composition error: refusal precedes lock mutation.
+      const guard = path.join(root, '.agents/sessions/.lifecycle-transaction');
+      mkdirSync(guard);
+      assert.throws(() => createCheckpoint({ ...opts, evidence }), /evidence/i);
+      assert.ok(existsSync(guard));
+      rmSync(guard, { recursive: true });
       const legacy = createCheckpoint(opts);
       assert.equal(readFileSync(legacy.checkpoint, 'utf8'), `# Checkpoint — ${label}\n\n> Timestamp: ${opts.now.toISOString()}\n> Agent: ${opened.pair.signature}\n> Actor: marco\n> Session: \`${opened.sessionId}\`\n\n${body.trim()}\n`);
     });

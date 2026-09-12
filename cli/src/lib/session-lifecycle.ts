@@ -363,7 +363,7 @@ function openSessionUnlocked(opts: OpenSessionOptions): OpenReceipt {
   }
 }
 
-function createCheckpointUnlocked(opts: CheckpointOptions) {
+function prepareCheckpoint(opts: CheckpointOptions) {
   const agentsDir = findAgentsDir(); if (!agentsDir) throw new LifecycleError("could not locate .agents directory", 2);
   const schemas = path.join(agentsDir, "schemas");
   const embedded = parseEvidenceMarkdown(opts.body, schemas);
@@ -376,6 +376,18 @@ function createCheckpointUnlocked(opts: CheckpointOptions) {
   const target = path.resolve(agentsDir, "checkpoints", name); const root = path.resolve(agentsDir, "checkpoints") + path.sep;
   if (!target.startsWith(root)) throw new LifecycleError("unsafe checkpoint path", 2);
   const content = `# Checkpoint — ${slug}\n\n> Timestamp: ${now.toISOString()}\n> Agent: ${receipt.pair.signature}\n> Actor: ${pair.actor}\n> Session: \`${receipt.sessionId}\`\n\n${opts.body.replace(/^\s+|\s+$/g, "")}\n${evidence === undefined ? "" : renderEvidenceMarkdown(evidence)}`;
+  if (evidence !== undefined) {
+    // Validate the final markdown: trimming and legacy fences can hide or expose sections.
+    const recovered = parseEvidenceMarkdown(content, schemas);
+    if (recovered === undefined || renderEvidenceMarkdown(recovered) !== renderEvidenceMarkdown(evidence)) {
+      throw new LifecycleError("Explicit execution evidence is not recoverable from the serialized checkpoint", 2);
+    }
+  }
+  return { target, content, before, registryPath, receipt, name, now };
+}
+
+function createCheckpointUnlocked(opts: CheckpointOptions) {
+  const { target, content, before, registryPath, receipt, name, now } = prepareCheckpoint(opts);
   writeExclusiveFile(target, content);
   const after = mutateRegistry(before, (rows) => rows.map((r) => r.sessionId === receipt.sessionId ? { ...r, checkpoint: name } : r));
   try { opts.faultInjector?.("before-checkpoint-registry-write"); atomicCompareReplace(registryPath, before, after, receipt.sessionId); }
@@ -457,6 +469,9 @@ export function openSession(opts: OpenSessionOptions): OpenReceipt {
 }
 
 export function createCheckpoint(opts: CheckpointOptions) {
+  // Refuse unsafe explicit composition even before creating the transaction guard.
+  // Prepare again under the guard so lifecycle state is not reused across lock acquisition.
+  if (opts.evidence !== undefined) prepareCheckpoint(opts);
   return guarded(() => createCheckpointUnlocked(opts));
 }
 
