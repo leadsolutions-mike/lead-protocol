@@ -46,10 +46,25 @@ export function renderEvidenceMarkdown(data: ExecutionEvidence): string {
 
 /** Read the reserved canonical section; legacy bodies without it remain untouched. */
 export function parseEvidenceMarkdown(markdown: string, schemasDir: string): ExecutionEvidence | undefined {
-  const headings = [...markdown.matchAll(/^## Execution Evidence[ \t]*\r?$/gm)];
+  const headings: number[] = [];
+  let fence: { marker: string; length: number } | undefined;
+  let offset = 0;
+  for (const rawLine of markdown.split("\n")) {
+    const line = rawLine.replace(/\r$/, "");
+    const delimiter = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence) {
+      // Only a matching, sufficiently long fence with no info string closes the span.
+      if (delimiter && delimiter[1][0] === fence.marker && delimiter[1].length >= fence.length && /^[ \t]*$/.test(delimiter[2])) fence = undefined;
+    } else if (delimiter && (delimiter[1][0] === "~" || !delimiter[2].includes("`"))) {
+      fence = { marker: delimiter[1][0], length: delimiter[1].length };
+    } else if (/^## Execution Evidence[ \t]*$/.test(line)) {
+      headings.push(offset + rawLine.length);
+    }
+    offset += rawLine.length + 1;
+  }
   if (headings.length === 0) return undefined;
   if (headings.length !== 1) throw new Error("Duplicate execution evidence sections");
-  const section = markdown.slice(headings[0].index! + headings[0][0].length);
+  const section = markdown.slice(headings[0]);
   const match = /^\s*```json\r?\n([\s\S]*?)\r?\n```[ \t]*(?:\r?\n|$)/.exec(section);
   if (!match) throw new Error("Malformed execution evidence JSON section");
   try {

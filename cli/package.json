@@ -1,7 +1,7 @@
 {
   "name": "@leadsolutions/lead-protocol",
   "version": "2.1.5",
-  "description": "CLI tooling for the Lead Protocol \u2014 multi-agent coordination framework",
+  "description": "CLI tooling for the Lead Protocol — multi-agent coordination framework",
   "type": "module",
   "bin": {
     "lead-protocol": "./dist/index.js"
