@@ -17,8 +17,6 @@ export interface ChecklistItem {
   note?: string;
 }
 
-const PRISTINE_MARKERS = ["YYYY-MM-DD", "[Your Agent Signature]"];
-
 const CHECKLIST_KEYS = [
   "activity_log_updated",
   "decisions_appended",
@@ -31,7 +29,15 @@ const CHECKLIST_KEYS = [
 ] as const;
 
 export function isPristineHandoff(text: string): boolean {
-  return PRISTINE_MARKERS.some((marker) => text.includes(marker));
+  try {
+    const handoff = parseHandoffMd(text);
+    return (
+      handoff.updated === "YYYY-MM-DD" ||
+      handoff.last_agent === "[Your Agent Signature]"
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function parseHandoffMd(text: string): HandoffData {

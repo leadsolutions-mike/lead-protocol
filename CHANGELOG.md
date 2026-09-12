@@ -11,6 +11,35 @@ re-stated here.
 
 ---
 
+## [Unreleased]
+
+## [2.1.5] — 2026-09-12
+
+Maintenance release correcting CLI validation and strengthening release delivery.
+Kernel remains 2.0.2; no migration is required.
+
+### Fixed
+
+- Validate populated handoffs even when prose or fenced examples contain
+  pristine-template placeholders. Preserve genuine template skipping and
+  existing malformed-file reporting (#49, contributed by @leadsolutions-mike;
+  addresses #44).
+- All distributable framework Python scripts now carry the consistent
+  `SPDX-License-Identifier: Apache-2.0` header, with regression coverage for
+  future scripts and the bundled CLI template copy.
+
+### Changed
+
+- Update the repository lockfile to fast-uri 3.1.7 (#48).
+- Clarify README positioning and preserve contributor attribution (#41, #42).
+- Verify npm publication against the exact release commit and signed provenance,
+  then exercise the installed package. Publication retries reuse an existing
+  version only after verifying its identity and never replace published contents.
+- Document the product's owner-approved stable release workflow: prepare and
+  validate contributions before public merge, preserve original PR attribution,
+  and verify GitHub/npm delivery before closing related issues. Clarify that
+  source version metadata and merged PRs are not proof of completed publication.
+
 ## [2.1.4] — 2026-07-20
 
 Correctness patch separating product release identity from independently
