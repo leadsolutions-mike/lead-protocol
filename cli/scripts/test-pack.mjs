@@ -12,9 +12,10 @@
 // Note: installing the tarball downloads `dependencies` from the registry, so
 // this needs network access (just like a real `npm install` / `npx`).
 
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import {
   mkdtempSync,
+  realpathSync,
   mkdirSync,
   rmSync,
   writeFileSync,
@@ -24,7 +25,7 @@ import {
 } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.resolve(scriptDir, "..");
@@ -50,7 +51,7 @@ function capture(label, cmd, opts = {}) {
   return execSync(cmd, { encoding: "utf8", ...opts });
 }
 
-const tmp = mkdtempSync(path.join(os.tmpdir(), "lp-testpack-"));
+const tmp = realpathSync(mkdtempSync(path.join(os.tmpdir(), "lp-testpack-")));
 
 try {
   // 1. Fresh build (tsup + template sync via onSuccess).
@@ -244,6 +245,39 @@ try {
     { cwd: target },
   );
   console.log("[test-pack] OK: installed lifecycle completed a two-session resume flow");
+
+  // Evidence is exercised through the installed tarball, never a source import.
+  const evidenceLib = await import(pathToFileURL(path.join(installed, "dist/lib/execution-evidence.js")).href);
+  const schemasDir = path.join(target, ".agents/schemas");
+  const examples = [...protocolRules.matchAll(/```json\n([\s\S]*?)\n```/g)].map(m => JSON.parse(m[1])).filter(v => v.execution_evidence);
+  if (examples.length !== 2) throw new Error("shipped close/checkpoint examples missing");
+  for (const example of examples) evidenceLib.validateEvidence(example.execution_evidence, schemasDir);
+  console.log("[test-pack] OK: both illustrative examples validate against the shipped schema");
+  const evidenceFile = path.join(target, "execution-evidence.json");
+  const evidence = { checks: [{ command: "installed lifecycle fixture", cwd: target, result: "not_run", reason: "Illustrative roundtrip payload; not a claim of separate command execution" }], environment: { runtime: process.version, cwd: target } };
+  writeFileSync(evidenceFile, JSON.stringify(evidence));
+  const opened = JSON.parse(capture("evidence session open", `node ${q(bin)} session open --actor judge --agent codex --topic "Evidence roundtrip" --json`, { cwd: target }));
+  const checkpoint = JSON.parse(capture("evidence checkpoint", `node ${q(bin)} checkpoint --actor judge --agent codex --title evidence-roundtrip --file ${q(checkpointBody)} --evidence ${q(evidenceFile)} --json`, { cwd: target }));
+  if (JSON.stringify(evidenceLib.parseEvidenceMarkdown(readFileSync(checkpoint.checkpoint, "utf8"), schemasDir).checks) !== JSON.stringify(evidence.checks)) {
+    // JSON key ordering is canonicalized; compare canonical rendering instead.
+    if (evidenceLib.renderEvidenceMarkdown(evidenceLib.parseEvidenceMarkdown(readFileSync(checkpoint.checkpoint, "utf8"), schemasDir)) !== evidenceLib.renderEvidenceMarkdown(evidence)) throw new Error("installed checkpoint lost evidence");
+  }
+  const registry = path.join(target, ".agents/sessions/active_sessions.md");
+  const handoffPath = path.join(target, ".agents/local/judge/codex/handoff.md");
+  const beforeInvalid = [readFileSync(registry, "utf8"), readFileSync(handoffPath, "utf8"), readdirSync(receipts).join(",")];
+  writeFileSync(evidenceFile, '{"checks":[{"command":"test","result":"blocked","reason":" "}]}');
+  const closeArgs = [bin, "session", "close", "--actor", "judge", "--agent", "codex", "--journal", "not-significant", "--status", "stable", "--last-action", "Evidence roundtrip verified", "--pending-step", "None", "--confirm-checklist", "--evidence", evidenceFile, "--json"];
+  const rejected = spawnSync(process.execPath, closeArgs, { cwd: target, encoding: "utf8" });
+  if (rejected.status === 0 || !/execution evidence/i.test(rejected.stderr)) throw new Error("installed CLI accepted invalid evidence");
+  if (JSON.stringify(beforeInvalid) !== JSON.stringify([readFileSync(registry, "utf8"), readFileSync(handoffPath, "utf8"), readdirSync(receipts).join(",")])) throw new Error("invalid installed close mutated state");
+  writeFileSync(evidenceFile, JSON.stringify(evidence));
+  const closedProcess = spawnSync(process.execPath, closeArgs, { cwd: target, encoding: "utf8" });
+  if (closedProcess.status !== 0) throw new Error(closedProcess.stderr);
+  const closed = JSON.parse(closedProcess.stdout);
+  const saved = JSON.parse(readFileSync(path.join(receipts, `${opened.sessionId}-close.json`), "utf8"));
+  if (JSON.stringify(saved) !== JSON.stringify(closed) || JSON.stringify(evidenceLib.parseCloseReceiptEvidence(saved, schemasDir)) !== JSON.stringify(evidence)) throw new Error("installed close receipt lost evidence");
+  if (!readFileSync(handoffPath, "utf8").includes(path.basename(checkpoint.checkpoint))) throw new Error("installed handoff lost checkpoint reference");
+  console.log("[test-pack] OK: installed evidence roundtrip, invalid-input preservation, receipt and handoff references");
 
   console.log("\n[test-pack] PASS: the locally packed artifact installs and runs like production.");
 } catch (err) {

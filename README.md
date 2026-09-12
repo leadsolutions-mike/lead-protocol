@@ -394,3 +394,8 @@ Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 ---
 
 *Built by [mmilanez](https://github.com/mmilanez) — born from managing AI agents across 100+ repositories.*
+
+Execution evidence for implementation handoffs is documented in
+[the protocol's session-close contract](.agents/PROTOCOL_RULES.md#execution-evidence--session-closeouts), with
+[portable schema](.agents/schemas/execution-evidence.schema.json) and checkpoint/close CLI support. Evidence
+is globally optional for compatibility; implementation completion records execution or explicit inability reasons.

@@ -176,3 +176,17 @@ The CLI manages `CLAUDE.md` and `AGENTS.md` using XML-style tags:
 
 Apache-2.0
 
+
+### Execution evidence on checkpoints and closeouts
+
+Use `checkpoint --title verified --file checkpoint.md --evidence evidence.json` or add
+`--evidence evidence.json` to `session close` with its existing required close flags. The input is the
+portable evidence object, without an outer key. See the shipped `.agents/PROTOCOL_RULES.md` execution-evidence
+section and `.agents/schemas/execution-evidence.schema.json` for fields and illustrative examples.
+
+The CLI validates supplied evidence before writes, appends one canonical JSON checkpoint section, or adds
+`execution_evidence` to the close receipt. Evidence-bearing closes reference their receipt and latest checkpoint
+in the existing handoff context. Publish a shared close checkpoint with durable evidence for cross-machine
+handoffs. Browser evidence is optional; unperformed checks require a reason and never imply success.
+Omission preserves legacy behavior. Empty/omitted evidence and successful state validation do not prove task
+completion or test execution. `validate` retains its handoff/decisions scope; it does not scan evidence artifacts.

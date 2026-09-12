@@ -1,6 +1,6 @@
 # CORE_RULES.md — Rules index and essential contracts
 
-> Version: 1.5.0 | Updated: 2026-04-21 | Protocol: Lead Protocol v2.0.0
+> Version: 1.6.0 | Updated: 2026-09-12 | Protocol: Lead Protocol v2.0.0
 
 This file is the first thing every agent reads. It is deliberately short: just the index into `PROTOCOL_RULES.md`, the essential contracts an agent must obey at every session start, and the precedence rule. It never duplicates the kernel — only points at it.
 
@@ -60,6 +60,8 @@ Agents never edit `.agents/AGENTS_MAP.md` autonomously. They *propose* additions
 ### Session close must be verified
 
 Every non-trivial session closes by self-verifying the checklist in `handoff.md`. One item is a **procedural question** to the user: *"Did this session produce a structurally significant delivery? If yes, promote to JOURNAL."* No heuristic, no auto-detection. Detail: `PROTOCOL_RULES.md §P3 — Session close ritual`.
+
+Implementation completion must record executed validation or an explicit inability reason. See `PROTOCOL_RULES.md §P3 — Execution evidence` for the optional checkpoint/close-receipt contract and discoverable references; the handoff schema remains immutable.
 
 ---
 
