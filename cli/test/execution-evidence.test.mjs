@@ -37,21 +37,23 @@ test('canonical JSON is deterministic, safe, lossless and parsable without dupli
   assert.throws(() => parseCloseReceiptEvidence({ execution_evidence: null }, schemas), /evidence/i);
 });
 
-test('illustrative closeout and checkpoint examples cover all statuses and reproducible references', () => {
-  const rules = readFileSync(new URL('../../.agents/PROTOCOL_RULES.md', import.meta.url), 'utf8');
-  const examples = [...rules.matchAll(/```json\n([\s\S]*?)\n```/g)].map(m => JSON.parse(m[1])).filter(v => v.execution_evidence);
-  assert.equal(examples.length, 2, 'one illustrative closeout and one checkpoint example');
-  for (const { execution_evidence: value } of examples) {
-    validateEvidence(value, schemas);
-    assert.deepEqual(new Set(value.checks.map(c => c.result)), new Set(['passed', 'failed', 'not_run', 'blocked']));
-    for (const field of ['branch', 'commit']) assert.ok(value.git[field]);
-    for (const field of ['runtime', 'cwd', 'ci_run', 'package_manager']) assert.ok(value.environment[field]);
-    assert.ok(value.checks.some(c => c.artifact));
-    assert.ok(value.browser_validation.evidence);
-  }
-  assert.match(rules, /optional globally/i);
-  assert.match(rules, /must not be marked complete solely because files were changed/i);
-});
+for (const [lineEnding, newline] of [['LF', '\n'], ['CRLF', '\r\n']]) {
+  test(`illustrative closeout and checkpoint examples cover all statuses and reproducible references (${lineEnding})`, () => {
+    const rules = readFileSync(new URL('../../.agents/PROTOCOL_RULES.md', import.meta.url), 'utf8').replace(/\r?\n/g, newline);
+    const examples = [...rules.matchAll(/```json\n([\s\S]*?)\n```/g)].map(m => JSON.parse(m[1])).filter(v => v.execution_evidence);
+    assert.equal(examples.length, 2, 'one illustrative closeout and one checkpoint example');
+    for (const { execution_evidence: value } of examples) {
+      validateEvidence(value, schemas);
+      assert.deepEqual(new Set(value.checks.map(c => c.result)), new Set(['passed', 'failed', 'not_run', 'blocked']));
+      for (const field of ['branch', 'commit']) assert.ok(value.git[field]);
+      for (const field of ['runtime', 'cwd', 'ci_run', 'package_manager']) assert.ok(value.environment[field]);
+      assert.ok(value.checks.some(c => c.artifact));
+      assert.ok(value.browser_validation.evidence);
+    }
+    assert.match(rules, /optional globally/i);
+    assert.match(rules, /must not be marked complete solely because files were changed/i);
+  });
+}
 
 for (const newline of ['\n', '\r\n']) {
   for (const fence of ['```', '~~~', '````', '~~~~~']) {
