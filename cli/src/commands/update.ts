@@ -31,6 +31,12 @@ function printPlan(plan: UpdatePlan): void {
   for (const file of created) {
     console.log(`  ${ui.symbols.arrow} created    .agents/${file.relPath}`);
   }
+  for (const file of unchanged) {
+    console.log(`  ${ui.symbols.arrow} unchanged  .agents/${file.relPath}`);
+  }
+  for (const relPath of plan.skipped) {
+    console.log(`  ${ui.symbols.arrow} unchanged  .agents/${relPath} (project-layer file left untouched)`);
+  }
   console.log(
     ui.dim(
       `  ${unchanged.length} framework file(s) unchanged, ` +

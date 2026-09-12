@@ -226,3 +226,39 @@ test('template actor seeds are excluded entirely even under force overlay', asyn
     assert.deepEqual(snapshot(path.join(target, 'local')), local);
   }
 });
+
+
+test('init --force warning names project files and describes overlay preservation', t => {
+  const root = fixture(t);
+  put(root, '.agents/PROJECT_RULES.md');
+  put(root, '.agents/checkpoints/custom.md', 'keep checkpoint');
+  const result = run(root, 'init', '--force', '--yes');
+  assert.equal(result.status, 0, result.stderr);
+  const warning = result.stdout.slice(0, result.stdout.indexOf('.agents/ created'));
+  for (const rel of ['PROJECT_RULES.md', 'AGENTS_MAP.md', 'JOURNAL.md', 'LESSONS.md', 'decisions.jsonl', 'sessions/active_sessions.md', 'checkpoints/.gitkeep']) {
+    assert.ok(warning.includes('.agents/' + rel), 'warning must name ' + rel);
+  }
+  assert.match(warning, /overwrite/i);
+  assert.match(warning, /overlay/i);
+  assert.match(warning, /custom checkpoints.*preserved/i);
+  assert.equal(readFileSync(path.join(root, '.agents/checkpoints/custom.md'), 'utf8'), 'keep checkpoint');
+});
+
+for (const option of ['--dry-run', '--yes']) {
+  test(`update ${option} reports every bundled file with its planned status`, t => {
+    const root = fixture(t);
+    assert.equal(run(root, 'init', '--yes').status, 0);
+    const files = Object.entries(snapshot(path.join(root, '.agents')))
+      .filter(([, value]) => value[0] === 'file').map(([rel]) => rel);
+    put(root, '.agents/CORE_RULES.md', 'old framework');
+    put(root, '.agents/PROJECT_RULES.md', 'custom project');
+    rmSync(path.join(root, '.agents/checkpoints/.gitkeep'));
+    const result = run(root, 'update', option);
+    assert.equal(result.status, 0, result.stderr);
+    const report = [...result.stdout.matchAll(/\b(updated|created|unchanged)\s+\.agents\/(\S+)/g)]
+      .map(([, action, rel]) => [rel, action]);
+    const expected = files.map(rel => [rel, rel === 'CORE_RULES.md' ? 'updated' : rel === 'checkpoints/.gitkeep' ? 'created' : 'unchanged']);
+    assert.deepEqual(report.sort(), expected.sort());
+    assert.equal(readFileSync(path.join(root, '.agents/PROJECT_RULES.md'), 'utf8'), 'custom project');
+  });
+}

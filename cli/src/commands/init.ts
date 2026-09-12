@@ -30,7 +30,15 @@ export function registerInitCommand(program: Command): void {
         process.exitCode = 1;
         return;
       }
-      if (opts.force) ui.warn("Force init overwrites bundled project seeds; actor local state and orphan files are preserved.");
+      if (opts.force) {
+        ui.warn(
+          "Force init is an overlay and may overwrite these bundled project files: " +
+          ".agents/PROJECT_RULES.md, .agents/AGENTS_MAP.md, .agents/JOURNAL.md, " +
+          ".agents/LESSONS.md, .agents/decisions.jsonl, " +
+          ".agents/sessions/active_sessions.md, .agents/checkpoints/.gitkeep. " +
+          "Actor local state, custom checkpoints and orphan files are preserved.",
+        );
+      }
       if (!opts.yes) {
         const proceed = await confirm({
           message: opts.force ? "Overwrite bundled framework and project seeds?" : "Initialize Lead Protocol in this directory?",
