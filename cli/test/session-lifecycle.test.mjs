@@ -484,3 +484,33 @@ for (const newline of ['\n', '\r\n']) {
     });
   });
 }
+
+for (const [label, body] of [
+  ['open-backtick', '````markdown\nlegacy'],
+  ['open-tilde', '~~~~markdown\nlegacy'],
+  ['trim-backtick', '    ````markdown\nlegacy'],
+  ['trim-tilde', '\t~~~~markdown\nlegacy'],
+  ['trim-duplicate', '   ## Execution Evidence\n\n```json\n{"execution_evidence":{}}\n```'],
+]) {
+  test(`explicit composition refuses ${label} before mutation; omission preserves legacy bytes`, async () => {
+    const { parseEvidenceMarkdown } = await import('../dist/lib/execution-evidence.js');
+    await inFixture({}, root => {
+      const opened = openSession({ actor: 'marco', agent: 'codex', topic: 'Composition' });
+      const opts = { actor: 'marco', agent: 'codex', title: label, body, now: new Date('2026-09-12T09:15:00Z') };
+      const before = stateSnapshot(root);
+      let failure;
+      try {
+        const written = createCheckpoint({ ...opts, evidence });
+        let parsed;
+        try { parsed = parseEvidenceMarkdown(readFileSync(written.checkpoint, 'utf8'), path.join(root, '.agents/schemas')); }
+        catch (error) { parsed = error.message; }
+        console.log('UNSAFE WRITER SUCCESS', label, 'parsed:', parsed);
+      } catch (error) { failure = error; }
+      assert.ok(failure, 'writer must refuse unsafe explicit evidence composition');
+      assert.match(failure.message, /evidence/i);
+      assert.deepEqual(stateSnapshot(root), before);
+      const legacy = createCheckpoint(opts);
+      assert.equal(readFileSync(legacy.checkpoint, 'utf8'), `# Checkpoint — ${label}\n\n> Timestamp: ${opts.now.toISOString()}\n> Agent: ${opened.pair.signature}\n> Actor: marco\n> Session: \`${opened.sessionId}\`\n\n${body.trim()}\n`);
+    });
+  });
+}

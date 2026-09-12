@@ -279,6 +279,31 @@ try {
   if (malformedProcess.status === 0 || !/Malformed execution evidence/.test(malformedProcess.stderr)) throw new Error("installed CLI accepted malformed real section");
   if (JSON.stringify(stateSnapshot()) !== beforeMalformed) throw new Error("malformed real section mutated installed project state");
   console.log("[test-pack] OK: schema-free fenced legacy bytes preserved; malformed real section refused without state change");
+  for (const [label, body] of [
+    ["open-backtick", "````markdown\nlegacy"],
+    ["open-tilde", "~~~~markdown\nlegacy"],
+    ["trim-backtick", "    ````markdown\nlegacy"],
+    ["trim-tilde", "\t~~~~markdown\nlegacy"],
+    ["trim-duplicate", '   ## Execution Evidence\n\n```json\n{"execution_evidence":{}}\n```'],
+  ]) {
+    writeFileSync(quotedFile, body);
+    const before = JSON.stringify(stateSnapshot());
+    const args = [...quotedArgs];
+    args[args.indexOf("quoted-example")] = label;
+    const rejected = spawnSync(process.execPath, [...args, "--evidence", evidenceFile], { cwd: target, encoding: "utf8" });
+    if (rejected.status === 0) {
+      const saved = readFileSync(JSON.parse(rejected.stdout).checkpoint, "utf8");
+      console.log("UNSAFE INSTALLED WRITER SUCCESS", label, "parsed:", evidenceLib.parseEvidenceMarkdown(saved, schemasDir));
+      throw new Error("installed writer accepted unsafe explicit evidence composition");
+    }
+    if (!/evidence/i.test(rejected.stderr) || JSON.stringify(stateSnapshot()) !== before) throw new Error("unsafe composition refusal changed installed state");
+    const legacy = spawnSync(process.execPath, args, { cwd: target, encoding: "utf8" });
+    if (legacy.status !== 0) throw new Error(`legacy composition refused: ${legacy.stderr}`);
+    const checkpoint = JSON.parse(legacy.stdout);
+    const expected = `# Checkpoint — ${label}\n\n> Timestamp: ${checkpoint.timestamp}\n> Agent: ${opened.pair.signature}\n> Actor: judge\n> Session: \`${opened.sessionId}\`\n\n${body.trim()}\n`;
+    if (readFileSync(checkpoint.checkpoint, "utf8") !== expected) throw new Error("legacy composition bytes changed");
+  }
+  console.log("[test-pack] OK: unsafe explicit composition refused without mutation; legacy omission bytes preserved");
   // Quoted examples must also coexist with explicitly supplied real evidence.
   writeFileSync(checkpointBody, quotedBody);
   const checkpoint = JSON.parse(capture("evidence checkpoint", `node ${q(bin)} checkpoint --actor judge --agent codex --title evidence-roundtrip --file ${q(checkpointBody)} --evidence ${q(evidenceFile)} --json`, { cwd: target }));
