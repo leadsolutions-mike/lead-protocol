@@ -1,7 +1,7 @@
 {
   "name": "@leadsolutions/lead-protocol",
   "version": "2.1.5",
-  "description": "CLI tooling for the Lead Protocol — multi-agent coordination framework",
+  "description": "CLI tooling for the Lead Protocol \u2014 multi-agent coordination framework",
   "type": "module",
   "bin": {
     "lead-protocol": "./dist/index.js"
@@ -13,7 +13,7 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test test/session-lifecycle.test.mjs test/status.test.mjs test/validate.test.mjs test/release-metadata.test.mjs",
+    "test": "npm run build && node --test test/session-lifecycle.test.mjs test/status.test.mjs test/validate.test.mjs test/release-metadata.test.mjs test/execution-evidence.test.mjs",
     "test:pack": "node scripts/test-pack.mjs",
     "sync:manifest": "node scripts/sync-manifest.mjs",
     "prepublishOnly": "npm run build"
