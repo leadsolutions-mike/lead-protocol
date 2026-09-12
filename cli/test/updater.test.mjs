@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, lstatSync, readlinkSync, symlinkSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, lstatSync, readlinkSync, realpathSync, symlinkSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 const bin = process.env.LEAD_PROTOCOL_TEST_BIN ?? fileURLToPath(new URL('../dist/index.js', import.meta.url));
 function fixture(t) {
-  const root = mkdtempSync(path.join(tmpdir(), 'lp-update-'));
+  // Match spawned CLI cwd resolution (e.g. macOS /var -> /private/var).
+  // Resolve only the allocation root, preserving hazards created inside fixtures.
+  const root = mkdtempSync(path.join(realpathSync(tmpdir()), 'lp-update-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return root;
 }
