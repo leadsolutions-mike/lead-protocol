@@ -13,6 +13,24 @@ re-stated here.
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-09-13
+
+Adds state-preserving CLI updates and safer initialization. Kernel remains 2.0.2.
+
+### Added
+
+- Layer-aware CLI `update` with manifest refresh, missing project seeds, preserved
+  project/actor state, orphan reporting and a no-write dry-run (PR #26; #25).
+  Based on Leonardo Buares's contribution, integrated and hardened by @leadsolutions-mike (PR #50).
+
+### Fixed
+
+- Refuse existing, partial or malformed installs in `init` unless `--force` is
+  explicit; force preserves actor-local state, including example-seed collisions (#40).
+- Preflight init/update path hazards before writes and refuse symbolic links
+  without removing them. Preserve guideline bytes outside managed tags and avoid
+  rewriting identical content.
+
 ## [2.1.5] — 2026-09-12
 
 Maintenance release correcting CLI validation and strengthening release delivery.
