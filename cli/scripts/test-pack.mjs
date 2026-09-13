@@ -307,7 +307,7 @@ try {
   let embeddedCases = 0;
   for (const [label, newline] of [["LF", "\n"], ["CRLF", "\r\n"]]) {
     const body = ("Narrative\n" + evidenceLib.renderEvidenceMarkdown(evidence)).replace(/\n/g, newline);
-    const hidden = "    ````markdown" + newline + body;
+    const hidden = ('    ```\nordinary text\n' + evidenceLib.renderEvidenceMarkdown(evidence)).replace(/\n/g, newline);
     if (evidenceLib.renderEvidenceMarkdown(evidenceLib.parseEvidenceMarkdown(hidden, schemasDir)) !== evidenceLib.renderEvidenceMarkdown(evidence)) throw new Error("embedded fixture must be parseable before trimming");
     const args = [...quotedArgs];
     args[args.indexOf("quoted-example")] = `embedded-${label.toLowerCase()}`;
@@ -327,7 +327,7 @@ try {
     if (evidenceLib.renderEvidenceMarkdown(evidenceLib.parseEvidenceMarkdown(saved, schemasDir)) !== evidenceLib.renderEvidenceMarkdown(evidence) || saved.split("## Execution Evidence").length - 1 !== 1 || !saved.endsWith(body.trim() + "\n")) throw new Error("installed embedded artifact lost or duplicated evidence");
     embeddedCases++;
   }
-  console.log(`[test-pack] OK: ${embeddedCases} embedded evidence cases passed (LF/CRLF hidden refusal, duplicate refusal, saved artifact roundtrip); all refusal state bytes and entries unchanged`);
+  console.log(`[test-pack] OK: ${embeddedCases} embedded evidence cases passed (LF/CRLF exact three-backtick refusal, duplicate refusal, saved artifact roundtrip); all refusal state bytes and entries unchanged`);
   // Quoted examples must also coexist with explicitly supplied real evidence.
   writeFileSync(checkpointBody, quotedBody);
   const checkpoint = JSON.parse(capture("evidence checkpoint", `node ${q(bin)} checkpoint --actor judge --agent codex --title evidence-roundtrip --file ${q(checkpointBody)} --evidence ${q(evidenceFile)} --json`, { cwd: target }));

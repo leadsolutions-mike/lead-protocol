@@ -522,12 +522,12 @@ for (const [label, body] of [
 }
 
 for (const [label, newline] of [['LF', '\n'], ['CRLF', '\r\n']]) {
-  test(`embedded evidence refuses leading-indented fence without state mutation (${label})`, async () => {
+  test(`embedded evidence refuses exact leading-indented three-backtick reproduction without state mutation (${label})`, async () => {
     const { parseEvidenceMarkdown, renderEvidenceMarkdown } = await import('../dist/lib/execution-evidence.js');
     await inFixture({ newline }, root => {
       openSession({ actor: 'marco', agent: 'codex', topic: 'Embedded evidence' });
       const schemas = path.join(root, '.agents/schemas');
-      const body = ('    ````markdown\nNarrative\n' + renderEvidenceMarkdown(evidence)).replace(/\n/g, newline);
+      const body = ('    ```\nordinary text\n' + renderEvidenceMarkdown(evidence)).replace(/\n/g, newline);
       assert.deepEqual(parseEvidenceMarkdown(body, schemas), evidence);
       const before = stateSnapshot(root);
       const entries = readdirSync(path.join(root, '.agents'), { recursive: true });
