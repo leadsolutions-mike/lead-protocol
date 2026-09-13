@@ -1,6 +1,6 @@
 # PROTOCOL_RULES.md — Lead Protocol framework rules (generic)
 
-> Version: 2.1.0 | Updated: 2026-09-13
+> Version: 2.1.1 | Updated: 2026-09-13
 > Scope: Substrate-agnostic kernel. Opt-in modules live in `modules/` and are activated via `PROJECT_RULES.md §J8`.
 > This file contains no project-specific content — that lives in `PROJECT_RULES.md`.
 
@@ -356,6 +356,7 @@ case-sensitive and literal; try relevant spelling variants deliberately.
 ```python
 from pathlib import Path
 from itertools import islice
+import re
 
 
 def search_page(paths, term, offset=0, limit=20):
@@ -377,7 +378,7 @@ def search_page(paths, term, offset=0, limit=20):
 
 def entry_page(path, line, offset=0, limit=2000):
     # JSONL: one physical line is a complete record. Markdown: entries begin
-    # with level-two headings; nested headings remain inside the entry.
+    # with column-zero "## " outside fences; nested headings stay inside.
     if offset < 0 or not 1 <= limit <= 8000:
         raise ValueError("Use a nonnegative offset and limit 1..8000")
     path = Path(path)
@@ -386,10 +387,25 @@ def entry_page(path, line, offset=0, limit=2000):
         raise ValueError("Line is outside the source")
     start, end = line - 1, line
     if path.suffix != ".jsonl":
-        while start > 0 and not lines[start].startswith("## "):
-            start -= 1
-        while end < len(lines) and not lines[end].startswith("## "):
-            end += 1
+        boundaries = [0]
+        fence = None
+        for index, text in enumerate(lines):
+            if fence is not None:
+                marker, length = fence
+                if re.fullmatch(r" {0,3}" + re.escape(marker) + "{" + str(length)
+                                + r",}[ \t]*", text.rstrip("\r\n")):
+                    fence = None
+                continue
+            opening = re.match(r" {0,3}(`{3,}|~{3,})(.*)$", text.rstrip("\r\n"))
+            if opening and not (opening[1][0] == "`" and "`" in opening[2]):
+                fence = (opening[1][0], len(opening[1]))
+            elif text.startswith("## "):
+                boundaries.append(index)
+        if fence is not None:
+            raise ValueError("Unterminated fence: inspect explicit source ranges; "
+                             "entry completeness is unknown")
+        start = max(index for index in boundaries if index <= line - 1)
+        end = next((index for index in boundaries if index > line - 1), len(lines))
     record = "".join(lines[start:end])
     return {"text": record[offset:offset + limit],
             "next": offset + limit if offset + limit < len(record) else None}
@@ -404,9 +420,24 @@ Use `entry_page(hit["path"], hit["line"])` and its continuation offsets to retri
 all chunks of the relevant entry before drawing conclusions. Keep the file list
 and contents stable while paging; restart if sources change.
 
-The entry example supports JSONL and Markdown logs delimited by `## ` headings.
-For other formats, inspect the surrounding boundaries and retrieve the complete
-record with explicit source ranges using your environment's offset reader. The
+The entry example supports JSONL physical-line records and a narrow Markdown log
+convention: entry delimiters are exactly column-zero `## ` (two hashes and an
+ASCII space); preamble text before the first delimiter is a separate range.
+Nested headings remain in the entry. Top-level backtick and tilde fences use at
+least three identical markers, with zero to three leading ASCII spaces. A closer
+uses the same marker, at least the opener's length, and only spaces/tabs after it;
+mismatched, shorter, four-space-indented or text-suffixed runs do not close it.
+Backtick opener info text cannot contain a backtick; tilde info text can.
+Fenced heading hits resolve to the enclosing entry, including hits after closing.
+Any unclosed fence anywhere in the selected file raises `ValueError` before
+returning a chunk, even for an earlier entry: completeness is unknown, not proven.
+
+This is not a general Markdown parser: indented/tab-separated/Setext headings,
+block-quote/list container fences, and HTML block semantics are unsupported.
+Use this recipe only when the source follows the convention above; it does not
+validate those unsupported structures. For other formats or an unclosed fence,
+inspect surrounding boundaries and retrieve explicit source ranges using your
+environment's offset reader, reporting uncertainty about entry completeness. The
 example reads the selected file internally to locate boundaries but emits only a
 bounded chunk. Filesystem/decoding errors propagate: report that coverage as
 inaccessible, not zero matches. Zero matches means only this literal was absent
