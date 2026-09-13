@@ -88,7 +88,8 @@ already point to the canonical kernel/checkpoint inventory; no new map row neede
 Only own session row is removed at close; Hermes's pre-existing dirty registry row
 is left unstaged. Own handoff/activity are gitignored and remain local. Decisions
 are tail-appended. No new separate lesson beyond the already recorded review finding.
-No push, PR, release, merge, JOURNAL write or self-approval. Owner explicitly forbids
-JOURNAL for this contribution, superseding the routine promotion question.
+No push, PR, release, merge, JOURNAL write or self-approval. The orchestrator's
+bounded worker brief excluded JOURNAL writes; owner promotion consent was neither
+requested nor inferred by this worker and remains a separate owner decision.
 Fresh Opus rereview should inspect the exact containing SHA, fence-boundary and
 refusal behavior, the documented unsupported structures and the state-gate exception.

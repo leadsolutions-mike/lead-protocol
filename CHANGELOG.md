@@ -17,7 +17,7 @@ re-stated here.
 
 - Project-owned root `INDEX.md` navigation, on-demand canonical-source discovery
   with independent bounded history-search examples, and same-session pointer
-  maintenance (#18). Kernel 2.1.0, CORE 1.6.0, PROJECT_RULES 2.1.0; the persisted
+  maintenance (#18). Kernel 2.1.1, CORE 1.6.0, PROJECT_RULES 2.1.0; the persisted
   handoff checklist remains eight items. Product/package version remains 2.1.5
   pending maintainer release selection.
 - Create-only INDEX seeding with source/destination preflight, exclusive creation,

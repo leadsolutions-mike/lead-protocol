@@ -38,3 +38,10 @@ def test_maintenance_is_in_quality_and_close_without_schema_growth():
     for section in [kernel.split('### Session close ritual', 1)[1].split('### Branch ordering', 1)[0], kernel.split('## §P4', 1)[1].split('## §P5', 1)[0], (ROOT / '.agents/PROJECT_RULES.md').read_text().split('## §J5', 1)[1].split('## §J6', 1)[0]]:
         assert 'same session' in section and 'INDEX.md' in section
     assert 'section/anchor' in kernel
+
+
+def test_unreleased_kernel_description_matches_manifest():
+    import json
+    manifest = json.loads((ROOT / '.agents/manifest.json').read_text())
+    unreleased = (ROOT / 'CHANGELOG.md').read_text().split('## [Unreleased]', 1)[1].split('\n## [', 1)[0]
+    assert f"Kernel {manifest['kernel_version']}" in unreleased
