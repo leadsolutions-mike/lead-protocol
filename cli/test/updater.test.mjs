@@ -6,6 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 const bin = process.env.LEAD_PROTOCOL_TEST_BIN ?? fileURLToPath(new URL('../dist/index.js', import.meta.url));
+const packageVersion = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 function fixture(t) {
   // Match spawned CLI cwd resolution (e.g. macOS /var -> /private/var).
   // Resolve only the allocation root, preserving hazards created inside fixtures.
@@ -82,7 +83,7 @@ test('update refreshes manifest/framework, seeds missing project files, preserve
   assert.deepEqual(snapshot(root), beforeDryRun, 'dry-run must not change bytes or mtimes');
   const result = run(root, 'update', '--yes');
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(JSON.parse(readFileSync(path.join(root, '.agents/manifest.json'))).product_version, '2.1.5');
+  assert.equal(JSON.parse(readFileSync(path.join(root, '.agents/manifest.json'))).product_version, packageVersion);
   assert.match(readFileSync(path.join(root, '.agents/CORE_RULES.md'), 'utf8'), /CORE_RULES/);
   assert.ok(lstatSync(path.join(root, '.agents/checkpoints/.gitkeep')).isFile());
   for (const [rel, bytes] of preserved) assert.deepEqual(readFileSync(path.join(root, '.agents', rel)), bytes, rel);
@@ -100,7 +101,7 @@ test('update repairs a partial pre-manifest install without creating local seeds
   const result = run(root, 'update', '--yes');
   assert.equal(result.status, 0, result.stderr);
   assert.equal(readFileSync(path.join(root, '.agents/PROJECT_RULES.md'), 'utf8'), 'custom sentinel\r\n\n\n');
-  assert.equal(JSON.parse(readFileSync(path.join(root, '.agents/manifest.json'))).product_version, '2.1.5');
+  assert.equal(JSON.parse(readFileSync(path.join(root, '.agents/manifest.json'))).product_version, packageVersion);
   assert.equal(lstatSync(path.join(root, '.agents/local'), { throwIfNoEntry: false }), undefined);
 });
 

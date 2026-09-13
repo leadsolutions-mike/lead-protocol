@@ -13,11 +13,15 @@ re-stated here.
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-09-13
+
+Adds state-preserving CLI updates and safer initialization. Kernel remains 2.0.2.
+
 ### Added
 
 - Layer-aware CLI `update` with manifest refresh, missing project seeds, preserved
   project/actor state, orphan reporting and a no-write dry-run (PR #26; #25).
-  Based on Leonardo Buares's contribution, integrated and hardened by [Mike / Codex].
+  Based on Leonardo Buares's contribution, integrated and hardened by @leadsolutions-mike (PR #50).
 
 ### Fixed
 
