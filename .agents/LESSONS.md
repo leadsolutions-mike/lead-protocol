@@ -20,3 +20,10 @@ When this file grows past ~300 lines, move older entries into `archive/LESSONS-<
 ---
 
 *(No lessons yet — this file accumulates as reusable knowledge emerges.)*
+
+## 2026-09-13 | [Mike / Codex] | tags: windows, init, symlink, regression
+
+Do not use exclusive creation alone as the INDEX destination-type guard after
+preflight. Keep a type check before writing, retain exclusive creation for regular
+file preservation, and test external dangling referent absence as well as the link.
+Platform evidence and limits: `.agents/checkpoints/2026-09-13T074650_codex_issue18-windows-ci-remediation.md` — Root cause and confidence.

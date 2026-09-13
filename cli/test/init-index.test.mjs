@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, cpSync, rmSync, lstatSync, readdirSync, readlinkSync, symlinkSync, chmodSync } from 'node:fs';
+import * as fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -80,6 +81,7 @@ for (const kind of ['directory', 'live-link', 'dangling-link', ...(process.platf
     assert.match(result.stderr + result.stdout, /INDEX.md/);
     assert.deepEqual(snapshot(target), before);
     assert.equal(readFileSync(outside, 'utf8'), 'outside unchanged');
+    assert.throws(() => lstatSync(path.join(dir, 'absent')), { code: 'ENOENT' });
   });
 }
 for (const kind of ['missing', 'directory', 'live-link', 'dangling-link', ...(process.platform === 'win32' ? [] : ['fifo', 'unreadable'])]) {
@@ -102,6 +104,7 @@ for (const kind of ['missing', 'directory', 'live-link', 'dangling-link', ...(pr
     assert.match(result.stderr + result.stdout, /INDEX.md/);
     assert.deepEqual(snapshot(target), before);
     assert.equal(readFileSync(outside, 'utf8'), 'outside seed');
+    assert.throws(() => lstatSync(path.join(dir, 'absent')), { code: 'ENOENT' });
   });
 }
 
@@ -133,11 +136,21 @@ test('both managed pointers include discovery with unchanged normalization basel
   }
 });
 
-test('exclusive creation preserves racing regular files and rejects racing unsupported entries', async t => {
+// Load the actual helper with a private filesystem adapter; no process-global mocks.
+function indexHelper(overrides = {}) {
   const source = readFileSync(path.join(root, 'cli/src/lib/index-seed.ts'), 'utf8');
-  const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
-  const { preflightIndex, installIndex } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
-  for (const kind of ['regular', 'directory', 'live-link', 'dangling-link']) {
+  const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const exports = {};
+  new Function('require', 'exports', compiled)(name => {
+    assert.equal(name, 'node:fs');
+    return { ...fs, ...overrides };
+  }, exports);
+  return exports;
+}
+
+for (const kind of ['regular', 'directory', 'live-link', 'dangling-link']) {
+  test(`exclusive creation handles racing ${kind} without changing entries or referents`, t => {
+    const { preflightIndex, installIndex } = indexHelper();
     const { dir, target } = fixture(t);
     const seedFile = path.join(dir, 'seed');
     writeFileSync(seedFile, seed);
@@ -147,10 +160,60 @@ test('exclusive creation preserves racing regular files and rejects racing unsup
     if (kind === 'regular') writeFileSync(index, 'racing\r\n');
     else if (kind === 'directory') mkdirSync(index);
     else symlinkSync(kind === 'live-link' ? seedFile : path.join(dir, 'missing'), index);
-    const before = snapshot(target);
-    if (kind === 'regular') assert.equal(installIndex(plan), 'preserved');
-    else assert.throws(() => installIndex(plan), /INDEX.md/);
-    assert.deepEqual(snapshot(target), before);
+    // Includes the external referent: snapshot(target) alone misses its creation.
+    const before = snapshot(dir);
+    try {
+      if (kind === 'regular') assert.equal(installIndex(plan), 'preserved', kind);
+      else assert.throws(() => installIndex(plan), /INDEX.md/, kind);
+    } finally {
+      assert.deepEqual(snapshot(dir), before, `${kind}: entries and referents unchanged`);
+    }
     assert.deepEqual(readFileSync(seedFile), seed);
-  }
+  });
+}
+
+test('install refuses a racing dangling-link before a link-following exclusive write (deterministic model)', t => {
+  const { dir, target } = fixture(t);
+  const seedFile = path.join(dir, 'seed');
+  const index = path.join(target, 'INDEX.md');
+  const missing = path.join(dir, 'missing');
+  writeFileSync(seedFile, seed);
+  let writes = 0;
+  const { preflightIndex, installIndex } = indexHelper({
+    writeFileSync(file, bytes, options) {
+      writes++;
+      assert.equal(options.flag, 'wx');
+      // Model the Windows referent-create path; this is not native Windows evidence.
+      return writeFileSync(readlinkSync(file), bytes, options);
+    },
+  });
+  const plan = preflightIndex(seedFile, index);
+  symlinkSync(missing, index);
+  const before = snapshot(dir);
+  let refusal;
+  try { installIndex(plan); } catch (error) { refusal = error; }
+  assert.equal(writes, 0, 'unsupported entry must be refused before a write can create its referent');
+  assert.match(refusal?.message ?? '', /INDEX.md/);
+  assert.deepEqual(snapshot(dir), before);
+  assert.throws(() => lstatSync(missing), { code: 'ENOENT' });
+});
+
+test('exclusive creation still preserves a regular map arriving at the write boundary', t => {
+  const { dir, target } = fixture(t);
+  const seedFile = path.join(dir, 'seed');
+  const index = path.join(target, 'INDEX.md');
+  writeFileSync(seedFile, seed);
+  let writes = 0;
+  const { preflightIndex, installIndex } = indexHelper({
+    writeFileSync(file, bytes, options) {
+      writes++;
+      assert.equal(options.flag, 'wx');
+      writeFileSync(file, 'late consumer\r\n');
+      return writeFileSync(file, bytes, options);
+    },
+  });
+  assert.equal(installIndex(preflightIndex(seedFile, index)), 'preserved');
+  assert.equal(writes, 1);
+  assert.equal(readFileSync(index, 'utf8'), 'late consumer\r\n');
+  assert.deepEqual(readFileSync(seedFile), seed);
 });

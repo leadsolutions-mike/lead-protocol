@@ -30,6 +30,10 @@ export function preflightIndex(source: string, destination: string): IndexPlan {
 
 /** Exclusive creation; never overwrite a consumer map, including a racing one. */
 export function installIndex(plan: IndexPlan): "created" | "preserved" {
+  // Recheck entries arriving after preflight before attempting a write: on
+  // Windows, wx can follow a dangling symlink and create its referent.
+  // This does not guard arbitrary replacements between this check and open.
+  if (isRegularOrMissing(plan.destination)) return "preserved";
   try {
     writeFileSync(plan.destination, plan.bytes, { flag: "wx" });
     return "created";
