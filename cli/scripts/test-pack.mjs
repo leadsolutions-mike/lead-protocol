@@ -50,6 +50,17 @@ function capture(label, cmd, opts = {}) {
   return execSync(cmd, { encoding: "utf8", ...opts });
 }
 
+function runExpectFail(label, cmd, opts = {}) {
+  console.log(`\n[test-pack] ${label} (expected to fail)\n[test-pack] $ ${cmd}`);
+  try {
+    execSync(cmd, { stdio: "inherit", ...opts });
+  } catch {
+    console.log(`[test-pack] OK: failed as expected`);
+    return;
+  }
+  throw new Error(`${label}: command succeeded but was expected to fail`);
+}
+
 const tmp = mkdtempSync(path.join(os.tmpdir(), "lp-testpack-"));
 
 try {
@@ -120,6 +131,11 @@ try {
   if (!existsSync(path.join(target, ".agents", "CORE_RULES.md"))) {
     throw new Error(".agents/ was not created by init");
   }
+  const initializedAttributes = path.join(target, ".agents", ".gitattributes");
+  if (readFileSync(initializedAttributes, "utf8") !== readFileSync(path.join(shippedTemplates, ".agents", ".gitattributes"), "utf8")) {
+    throw new Error("init did not preserve shipped merge attributes");
+  }
+  console.log("[test-pack] OK: init installed the shipped merge attributes");
   const installedManifestPath = path.join(target, ".agents", "manifest.json");
   if (!existsSync(installedManifestPath)) throw new Error(".agents/manifest.json was not created by init");
   const installedManifest = JSON.parse(readFileSync(installedManifestPath, "utf8"));
@@ -254,6 +270,42 @@ try {
     cwd: tmp,
     env: { ...process.env, LEAD_PROTOCOL_TEST_BIN: bin },
   });
+
+  run("packed validator parity without Git and local merge regressions",
+    `node --test --test-name-pattern="successor|union|JSONL|mutable sessions" ${q(path.join(pkgRoot, "test", "validate.test.mjs"))} ${q(path.join(pkgRoot, "test", "git-merge.test.mjs"))}`, {
+      cwd: tmp,
+      env: { ...process.env, LEAD_PROTOCOL_TEST_BIN: bin },
+    });
+
+  // 5. Structural integrity checks (§P3 append-at-tail invariants):
+  // corrupt each state file the way real-world merges and bad appends do,
+  // expect `validate` to fail, restore, and expect it to pass again.
+  const stateFile = (...segments) => path.join(target, ".agents", ...segments);
+  const corruptions = [
+    {
+      label: "conflict markers in decisions.jsonl",
+      file: stateFile("decisions.jsonl"),
+      corrupt: (text) =>
+        `<<<<<<< HEAD\n${text}=======\n{"other":"side"}\n>>>>>>> feature\n`,
+    },
+    {
+      label: "missing final newline in LESSONS.md",
+      file: stateFile("LESSONS.md"),
+      corrupt: (text) => text.replace(/\n+$/, ""),
+    },
+    {
+      label: "duplicated top-level header in JOURNAL.md",
+      file: stateFile("JOURNAL.md"),
+      corrupt: (text) => `${text}\n# JOURNAL.md (duplicated by a bad merge)\n`,
+    },
+  ];
+  for (const { label, file, corrupt } of corruptions) {
+    const original = readFileSync(file, "utf-8");
+    writeFileSync(file, corrupt(original));
+    runExpectFail(`validate with ${label}`, `node ${q(bin)} validate`, { cwd: target });
+    writeFileSync(file, original);
+  }
+  run("validate after restoring state files", `node ${q(bin)} validate`, { cwd: target });
 
   console.log("\n[test-pack] PASS: the locally packed artifact installs and runs like production.");
 } catch (err) {

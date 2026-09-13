@@ -66,6 +66,22 @@ All session-close state must be committed on the **feature branch** before the p
 
 **Interaction with §M-git-1:** project-layer state files (`JOURNAL.md`, `LESSONS.md`, `decisions.jsonl`) normally allow direct commit without branching. §M-git-6 does not override that — it restricts **when** that direct commit may happen relative to PR lifecycle. When a PR is open for branched work, write your state to the feature branch before merge, not directly to the default branch after.
 
+## §M-git-7 — Merge handling for append-only logs *(Unreleased)*
+
+`JOURNAL.md`, `LESSONS.md`, and `decisions.jsonl` are append-at-tail (`PROTOCOL_RULES §P3`). Concurrent branch appends can conflict at the tail. Leftover conflict markers must be repaired before further appends.
+
+**Union merge attribute.** The template ships `.agents/.gitattributes` declaring `merge=union` for the three append-only logs. Git's built-in union driver combines conflicting lines without inserting conflict markers in those hunks. It requires no custom driver installation. Relative line order is arbitrary; this is line-based merging, not an entry-preservation or locking guarantee.
+
+**Deliberately excluded from union merge:**
+
+- `sessions/active_sessions.md`: rows are removed on session close, so this file is not append-only. A union merge would silently resurrect removed rows, making closed sessions reappear as live and poisoning the takeover rule. Conflicts here are rare (the file is small and short-lived) and must be resolved by hand.
+- `local/**`: per-pair state is gitignored (§M-git-5) and never merged.
+- Rules files (`PROTOCOL_RULES.md`, `PROJECT_RULES.md`, modules): edited in place by design; a union merge would concatenate divergent rule text. Normal conflict resolution applies.
+
+**Post-merge validation.** After any merge (or rebase) that touched files under `.agents/`, run the validator before continuing work: `python .agents/scripts/validate_state.py` or `lead-protocol validate`. It detects leftover conflict markers, a missing final newline, and duplicated top-of-file headers. Treat a failure as blocking (fix the state before any new append, per §P3 *Integrity invariants*).
+
+**Limitations (when human review is still required):** Two Markdown appends with the same heading can collapse into one heading followed by both bodies, losing the semantic boundary between entries. Byte-identical JSONL lines can appear only once after a merge; this can also happen when both resulting files are identical, without invoking union. Prefer distinguishable entry headings, such as a timestamp plus actor, agent, and session identifier, and distinct record identities where the schema permits. Unique headings reduce collisions but do not make whole entries atomic or guarantee lossless merges. `merge=union` is line-based and trusts that both sides only appended. If a branch violated §P3 and rewrote earlier lines, union merge can silently combine the rewrite with the original instead of surfacing a conflict. The validator catches structural symptoms, not semantic ones, so a merge that mixes two half-written entries into valid-looking text still needs a human eye. When in doubt, `git log -p` on the state file shows what each side actually changed.
+
 ## Optional tooling that ships with the template
 
 These files are included in the template as conveniences for projects whose substrate is `git+github` and that use common Python-ecosystem tooling. They are **opt-in** — deleting them breaks nothing in the kernel or in this module's rules:

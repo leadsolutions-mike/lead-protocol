@@ -13,6 +13,26 @@ re-stated here.
 
 ## [Unreleased]
 
+### Added
+
+- Integrate Leonardo Buares' PR #27 append-only integrity feature on current
+  2.2.0: structural checks in the Python and CLI validators, broader optional
+  hook/CI coverage, and union attributes for JOURNAL, LESSONS, and decisions.
+  Mutable sessions remain excluded from union merging.
+- Substrate-neutral integrity guidance and bounded optional Git merge guidance:
+  union is line-based, same-heading entries can collapse semantic boundaries,
+  and identical JSONL lines can deduplicate. Unique headings reduce collisions;
+  no locking or lossless guarantee is provided.
+
+### Fixed
+
+- Recognize real LF and CRLF conflict markers consistently in both validators.
+- Ignore Markdown markers and H1 examples inside valid backtick or tilde fences,
+  tracking delimiter length, indentation, and closing syntax. JSONL remains strict.
+
+This integration is unreleased. Product/CLI metadata remains 2.2.0 and kernel
+metadata remains 2.0.2; no version bump or publication is part of this change.
+
 ## [2.2.0] — 2026-09-13
 
 Adds state-preserving CLI updates and safer initialization. Kernel remains 2.0.2.

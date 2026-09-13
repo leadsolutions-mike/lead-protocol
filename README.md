@@ -306,6 +306,17 @@ Full detail: `.agents/PROTOCOL_RULES.md §P3 — Three-layer state model`.
 
 </details>
 
+### State file integrity
+
+The shared logs (`JOURNAL.md`, `LESSONS.md`, `decisions.jsonl`) are append-only at the tail, and the kernel defines three integrity invariants for them (`PROTOCOL_RULES.md §P3 Integrity invariants`): corrections are new entries (never rewrites of history), every append ends with a final newline, and structural corruption blocks new appends until repaired.
+
+Enforcement comes in two layers:
+
+- **Validation.** `python .agents/scripts/validate_state.py` (or `npx @leadsolutions/lead-protocol validate`) works in a plain local directory without Git. It checks conflict markers outside valid Markdown fences, missing final newlines on append-only files, and duplicated H1 headers outside fences in Markdown logs, alongside JSON-schema validation. JSONL is always parsed as JSONL. The bundled pre-commit hook and the CI workflow run the same checks.
+- **Optional merge handling (git projects).** The template ships `.agents/.gitattributes` with `merge=union` for the three append-only logs, which combines conflicting lines with arbitrary ordering. Same-heading Markdown entries can collapse into one entry, and byte-identical JSONL lines can deduplicate. Distinguishable headings (timestamp plus actor, agent, and session ID) reduce collisions but do not guarantee atomic or lossless entry preservation. `sessions/active_sessions.md` is deliberately excluded (its rows are removed on session close, and a union merge would resurrect them). Details and limitations: `.agents/modules/git-substrate.md §M-git-7`.
+
+Limitations: these checks catch structural corruption, not semantic mistakes. A merge that combines two half-written entries into valid-looking text, or an entry whose content is simply wrong, still requires human review. Neither append-at-tail nor validation provides locking. Git-specific post-merge guidance is in the optional `git-substrate` module.
+
 ---
 
 ## How agents boot in your project
