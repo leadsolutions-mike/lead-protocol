@@ -369,6 +369,7 @@ function prepareCheckpoint(opts: CheckpointOptions) {
   const embedded = parseEvidenceMarkdown(opts.body, schemas);
   if (embedded !== undefined && opts.evidence !== undefined) throw new LifecycleError("Supply execution evidence in the body or option, not both", 2);
   const evidence = opts.evidence === undefined ? undefined : validateEvidence(opts.evidence, schemas);
+  const actualEvidence = evidence ?? embedded;
   const now = opts.now ?? new Date(); const pair = resolvePair(opts, agentsDir, now); const paths = pairPaths(agentsDir, pair);
   const registryPath = path.join(agentsDir, "sessions", "active_sessions.md"); const before = readFileSync(registryPath, "utf8");
   const receipt = activeReceipt(paths.receipts, parseActiveSessions(before), pair);
@@ -376,11 +377,11 @@ function prepareCheckpoint(opts: CheckpointOptions) {
   const target = path.resolve(agentsDir, "checkpoints", name); const root = path.resolve(agentsDir, "checkpoints") + path.sep;
   if (!target.startsWith(root)) throw new LifecycleError("unsafe checkpoint path", 2);
   const content = `# Checkpoint — ${slug}\n\n> Timestamp: ${now.toISOString()}\n> Agent: ${receipt.pair.signature}\n> Actor: ${pair.actor}\n> Session: \`${receipt.sessionId}\`\n\n${opts.body.replace(/^\s+|\s+$/g, "")}\n${evidence === undefined ? "" : renderEvidenceMarkdown(evidence)}`;
-  if (evidence !== undefined) {
+  if (actualEvidence !== undefined) {
     // Validate the final markdown: trimming and legacy fences can hide or expose sections.
     const recovered = parseEvidenceMarkdown(content, schemas);
-    if (recovered === undefined || renderEvidenceMarkdown(recovered) !== renderEvidenceMarkdown(evidence)) {
-      throw new LifecycleError("Explicit execution evidence is not recoverable from the serialized checkpoint", 2);
+    if (recovered === undefined || renderEvidenceMarkdown(recovered) !== renderEvidenceMarkdown(actualEvidence)) {
+      throw new LifecycleError("Execution evidence is not recoverable from the serialized checkpoint", 2);
     }
   }
   return { target, content, before, registryPath, receipt, name, now };

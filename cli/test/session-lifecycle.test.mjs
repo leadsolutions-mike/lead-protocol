@@ -520,3 +520,36 @@ for (const [label, body] of [
     });
   });
 }
+
+for (const [label, newline] of [['LF', '\n'], ['CRLF', '\r\n']]) {
+  test(`embedded evidence refuses leading-indented fence without state mutation (${label})`, async () => {
+    const { parseEvidenceMarkdown, renderEvidenceMarkdown } = await import('../dist/lib/execution-evidence.js');
+    await inFixture({ newline }, root => {
+      openSession({ actor: 'marco', agent: 'codex', topic: 'Embedded evidence' });
+      const schemas = path.join(root, '.agents/schemas');
+      const body = ('    ````markdown\nNarrative\n' + renderEvidenceMarkdown(evidence)).replace(/\n/g, newline);
+      assert.deepEqual(parseEvidenceMarkdown(body, schemas), evidence);
+      const before = stateSnapshot(root);
+      const entries = readdirSync(path.join(root, '.agents'), { recursive: true });
+      assert.throws(() => createCheckpoint({ actor: 'marco', agent: 'codex', title: 'embedded-hidden', body }), /evidence/i);
+      assert.deepEqual(stateSnapshot(root), before);
+      assert.deepEqual(readdirSync(path.join(root, '.agents'), { recursive: true }), entries);
+    });
+  });
+
+  test(`embedded evidence saved artifact round-trips without duplication (${label})`, async () => {
+    const { parseEvidenceMarkdown, renderEvidenceMarkdown } = await import('../dist/lib/execution-evidence.js');
+    await inFixture({ newline }, root => {
+      openSession({ actor: 'marco', agent: 'codex', topic: 'Embedded evidence' });
+      const body = ('Narrative\n' + renderEvidenceMarkdown(evidence)).replace(/\n/g, newline);
+      const opts = { actor: 'marco', agent: 'codex', title: 'embedded-valid', body };
+      const before = stateSnapshot(root);
+      assert.throws(() => createCheckpoint({ ...opts, evidence }), /not both/);
+      assert.deepEqual(stateSnapshot(root), before);
+      const saved = readFileSync(createCheckpoint(opts).checkpoint, 'utf8');
+      assert.deepEqual(parseEvidenceMarkdown(saved, path.join(root, '.agents/schemas')), evidence);
+      assert.equal(saved.split('## Execution Evidence').length - 1, 1);
+      assert.ok(saved.endsWith(body.trim() + '\n'));
+    });
+  });
+}

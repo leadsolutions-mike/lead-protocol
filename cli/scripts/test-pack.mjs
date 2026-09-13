@@ -250,7 +250,7 @@ try {
   // Evidence is exercised through the installed tarball, never a source import.
   const evidenceLib = await import(pathToFileURL(path.join(installed, "dist/lib/execution-evidence.js")).href);
   const schemasDir = path.join(target, ".agents/schemas");
-  const examples = [...protocolRules.matchAll(/```json\n([\s\S]*?)\n```/g)].map(m => JSON.parse(m[1])).filter(v => v.execution_evidence);
+  const examples = [...protocolRules.matchAll(/```json\r?\n([\s\S]*?)\r?\n```/g)].map(m => JSON.parse(m[1])).filter(v => v.execution_evidence);
   if (examples.length !== 2) throw new Error("shipped close/checkpoint examples missing");
   for (const example of examples) evidenceLib.validateEvidence(example.execution_evidence, schemasDir);
   console.log("[test-pack] OK: both illustrative examples validate against the shipped schema");
@@ -304,6 +304,30 @@ try {
     if (readFileSync(checkpoint.checkpoint, "utf8") !== expected) throw new Error("legacy composition bytes changed");
   }
   console.log("[test-pack] OK: unsafe explicit composition refused without mutation; legacy omission bytes preserved");
+  let embeddedCases = 0;
+  for (const [label, newline] of [["LF", "\n"], ["CRLF", "\r\n"]]) {
+    const body = ("Narrative\n" + evidenceLib.renderEvidenceMarkdown(evidence)).replace(/\n/g, newline);
+    const hidden = "    ````markdown" + newline + body;
+    if (evidenceLib.renderEvidenceMarkdown(evidenceLib.parseEvidenceMarkdown(hidden, schemasDir)) !== evidenceLib.renderEvidenceMarkdown(evidence)) throw new Error("embedded fixture must be parseable before trimming");
+    const args = [...quotedArgs];
+    args[args.indexOf("quoted-example")] = `embedded-${label.toLowerCase()}`;
+    for (const [input, extra] of [[hidden, []], [body, ["--evidence", evidenceFile]]]) {
+      writeFileSync(quotedFile, input);
+      const before = JSON.stringify(stateSnapshot());
+      const entries = JSON.stringify(listRelativeEntries(path.join(target, ".agents")));
+      const rejected = spawnSync(process.execPath, [...args, ...extra], { cwd: target, encoding: "utf8" });
+      if (rejected.status === 0 || !/evidence/i.test(rejected.stderr)) throw new Error(`installed CLI accepted hidden or duplicate embedded evidence (${label})`);
+      if (JSON.stringify(stateSnapshot()) !== before || JSON.stringify(listRelativeEntries(path.join(target, ".agents"))) !== entries) throw new Error("embedded evidence refusal mutated installed state");
+      embeddedCases++;
+    }
+    writeFileSync(quotedFile, body);
+    const created = spawnSync(process.execPath, args, { cwd: target, encoding: "utf8" });
+    if (created.status !== 0) throw new Error(created.stderr);
+    const saved = readFileSync(JSON.parse(created.stdout).checkpoint, "utf8");
+    if (evidenceLib.renderEvidenceMarkdown(evidenceLib.parseEvidenceMarkdown(saved, schemasDir)) !== evidenceLib.renderEvidenceMarkdown(evidence) || saved.split("## Execution Evidence").length - 1 !== 1 || !saved.endsWith(body.trim() + "\n")) throw new Error("installed embedded artifact lost or duplicated evidence");
+    embeddedCases++;
+  }
+  console.log(`[test-pack] OK: ${embeddedCases} embedded evidence cases passed (LF/CRLF hidden refusal, duplicate refusal, saved artifact roundtrip); all refusal state bytes and entries unchanged`);
   // Quoted examples must also coexist with explicitly supplied real evidence.
   writeFileSync(checkpointBody, quotedBody);
   const checkpoint = JSON.parse(capture("evidence checkpoint", `node ${q(bin)} checkpoint --actor judge --agent codex --title evidence-roundtrip --file ${q(checkpointBody)} --evidence ${q(evidenceFile)} --json`, { cwd: target }));
