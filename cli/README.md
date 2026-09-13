@@ -102,11 +102,26 @@ lead-protocol init --yes  # Skip confirmation
 ```
 
 What it does:
+- **Unreleased:** preflight checks the required readable regular `INDEX.md` seed and destination before any init write; exclusive creation seeds a missing map and preserves existing regular maps byte-for-byte, including empty/CRLF maps and repeat init
 - Copies `.agents/` with all protocol files (rules, schemas, scripts, modules)
 - Creates `CLAUDE.md` and `AGENTS.md` with `<lead-protocol>` tagged boot procedures
 - Creates `.gitignore` with the protocol entries if none exists, or appends any missing ones if it already exists
 
-If Lead Protocol is already installed, you'll be asked before overwriting. Existing content in `CLAUDE.md` / `AGENTS.md` outside the `<lead-protocol>` tags is always preserved.
+If Lead Protocol is already installed, you'll be asked before overwriting.
+Cancellation writes nothing. INDEX symlinks (live or dangling), directories and
+other unsupported types are refused. A racing regular map is preserved; a
+racing unsupported entry is refused. This does not make the whole init atomic
+or protect against arbitrary concurrent replacement.
+
+Both managed pointers route project questions to relevant INDEX entries, then
+canonical sources; legacy missing maps fall back to §J6 and kernel §P-Access.
+The existing guideline writer still normalizes repeated blank lines globally;
+this feature does not change that behavior. Other protocol files retain current
+repeat-init behavior.
+
+Knowledge-map delivery is unreleased; published v2.1.5 lacks the seed. See the
+[root source-adoption instructions](../README.md#knowledge-map-unreleased) for
+safe manual adoption and the distinction from release-pinned commands.
 
 ### `handoff`
 

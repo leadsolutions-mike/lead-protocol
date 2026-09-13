@@ -4,6 +4,7 @@ import { Command } from "commander";
 import { confirm } from "@inquirer/prompts";
 import { getTemplatesDir } from "../lib/project.js";
 import { writeGuidelines } from "../lib/guideline-writer.js";
+import { preflightIndex, installIndex } from "../lib/index-seed.js";
 import * as ui from "../lib/ui.js";
 
 const GITIGNORE_PROTOCOL_ENTRIES = [
@@ -117,6 +118,13 @@ export function registerInitCommand(program: Command): void {
           return;
         }
       }
+
+      const indexPlan = preflightIndex(
+        path.join(templatesDir, "INDEX.md"),
+        path.join(targetDir, "INDEX.md"),
+      );
+      const indexResult = installIndex(indexPlan);
+      ui.success(`INDEX.md ${indexResult}`);
 
       copyAgentsDir(templatesDir, targetDir);
       ui.success(".agents/ created");

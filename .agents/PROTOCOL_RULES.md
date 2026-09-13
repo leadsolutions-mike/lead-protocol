@@ -1,6 +1,6 @@
 # PROTOCOL_RULES.md — Lead Protocol framework rules (generic)
 
-> Version: 2.0.2 | Updated: 2026-07-20
+> Version: 2.1.0 | Updated: 2026-09-13
 > Scope: Substrate-agnostic kernel. Opt-in modules live in `modules/` and are activated via `PROJECT_RULES.md §J8`.
 > This file contains no project-specific content — that lives in `PROJECT_RULES.md`.
 
@@ -207,6 +207,8 @@ At the end of a non-trivial session, the agent **must** update every applicable 
 | `.agents/JOURNAL.md` | The session produced a **structurally significant delivery** (see promotion rule below) | Routine activity, small fixes, exploration |
 | `.agents/sessions/active_sessions.md` | Registry is in use and this session has an open row | Registry not in use, or no open row |
 
+Before closing, verify affected `INDEX.md` and folder navigation pointers were maintained in the same session for file/folder create/remove/rename/move and section/anchor changes. This is a quality check, not a ninth persisted handoff checklist item.
+
 **JOURNAL promotion — procedural, not heuristic.** At session close, the agent asks the user exactly one procedural question: *"Did this session produce a structurally significant delivery? If yes, promote to JOURNAL."* The user replies with one word. No background detection, no heuristic guessing — orchestration of agents operates on **explicit commands**, never on state inference. The criterion for a "yes" is the six-month test: *if a new contributor arriving in six months would still benefit from seeing this entry, it belongs in JOURNAL; otherwise it belongs only in the actor's personal `activity.log`*.
 
 ### Branch ordering rule *(v2.0.1+)*
@@ -318,6 +320,16 @@ Read order matters: the `(actor, agent)` pair must be resolved *before* the pair
 6. `.agents/local/<actor>/<agent>/handoff.md` — state of this pair. Only accessible once `<agent>` is resolved.
 7. Listing (not reading) of `.agents/checkpoints/` — the agent knows which checkpoints exist and reads individual files on demand when they become relevant.
 
+### Project knowledge discovery
+
+Root `INDEX.md` is a project-owned, pointer-only topic/question → canonical file → section/anchor or record locator map. It complements `PROJECT_RULES.md §J6` (the compact protocol file inventory); it does not duplicate facts, decisions or history and never overrides source authority. Before answering a project question, consult relevant entries on demand, then read canonical sources. Do not load the entire map or all targets at boot.
+
+If INDEX is absent, fall back to §J6 and the independent search recipes below. Legacy projects still boot normally. A missing or stale entry is not proof of absence. Search relevant current, older and archived records before saying a topic was never discussed; a recent tail alone is insufficient. Use literal terms, bounded output pages with continuation, then retrieve the complete relevant entry. Report files/ranges searched and any incomplete, truncated or inaccessible evidence; never turn those limitations into an absolute absence claim.
+
+Optional folder `INDEX.md` files or README navigation sections may be registered in root INDEX. Pointer-only applies to navigation, not substantive README content. Keep actual actor-local/private topic rows out of shared maps; authorized portable external pointers still follow §P6 and §P7. No crawler, completeness guarantee or new lock system is implied.
+
+Update affected root/folder pointers in the same session when relevant files/folders are created, removed, renamed or moved, or referenced section/anchor names change. Coordinate shared edits through the existing substrate; do not reindex unaffected content.
+
 ### On-demand load contract (substrate-agnostic)
 
 The protocol prescribes **behavior** ("do not process more than is necessary to answer the current question"), not tooling. The agent picks the cheapest implementation available in its environment. A refined implementation (native offset reads) costs fewer tokens; a minimal implementation (load whole file, filter in-prompt) still satisfies the contract — it pays more, but semantics are identical. Whatever the substrate, the following access pattern applies:
@@ -331,6 +343,74 @@ The protocol prescribes **behavior** ("do not process more than is necessary to 
 | `.agents/checkpoints/<file>.md` | Read on demand by specific filename (typically listed in `active_sessions.md → Last checkpoint` or recommended by the owner). Never load the whole directory preemptively. |
 
 **Absolute rule:** never load a historical file in full without a specific justification tied to the current question. *"My tooling has no offset read"* is not a justification — it is an implementation limitation to work around via shell (`tail`, `grep`) or in-memory filter. If the agent cannot do better than a full load, it pays the cost explicitly once and does not let that pattern become the default.
+
+### Portable bounded search recipes
+
+These Python 3 examples run unchanged from POSIX or PowerShell Python sessions;
+no shell interpolation, regex query syntax, crawler or service is needed. Supply
+an explicit relevant file list from §J6 or your source inventory, including older
+and archived logs when present. Missing INDEX is not a prerequisite. Search is
+case-sensitive and literal; try relevant spelling variants deliberately.
+
+<!-- knowledge-search-python -->
+```python
+from pathlib import Path
+from itertools import islice
+
+
+def search_page(paths, term, offset=0, limit=20):
+    if offset < 0 or not 1 <= limit <= 100 or not term:
+        raise ValueError("Use a nonempty literal, nonnegative offset, limit 1..100")
+
+    def matches():
+        for name in paths:
+            with Path(name).open(encoding="utf-8") as source:
+                for number, line in enumerate(source, 1):
+                    if term in line:
+                        yield {"path": str(name), "line": number,
+                               "preview": line[:200], "clipped": len(line) > 200}
+
+    page = list(islice(matches(), offset, offset + limit + 1))
+    return {"hits": page[:limit],
+            "next": offset + limit if len(page) > limit else None}
+
+
+def entry_page(path, line, offset=0, limit=2000):
+    # JSONL: one physical line is a complete record. Markdown: entries begin
+    # with level-two headings; nested headings remain inside the entry.
+    if offset < 0 or not 1 <= limit <= 8000:
+        raise ValueError("Use a nonnegative offset and limit 1..8000")
+    path = Path(path)
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    if not 1 <= line <= len(lines):
+        raise ValueError("Line is outside the source")
+    start, end = line - 1, line
+    if path.suffix != ".jsonl":
+        while start > 0 and not lines[start].startswith("## "):
+            start -= 1
+        while end < len(lines) and not lines[end].startswith("## "):
+            end += 1
+    record = "".join(lines[start:end])
+    return {"text": record[offset:offset + limit],
+            "next": offset + limit if offset + limit < len(record) else None}
+```
+
+For example, after evaluating the block, use
+`search_page([".agents/JOURNAL.md", ".agents/decisions.jsonl"], "literal[topic]")`.
+Add explicitly selected archive files if they exist; never silently omit an
+expected inaccessible source. Pass the returned `next` offset for each following
+page until it is `None`. A clipped preview is only a locator, not full evidence.
+Use `entry_page(hit["path"], hit["line"])` and its continuation offsets to retrieve
+all chunks of the relevant entry before drawing conclusions. Keep the file list
+and contents stable while paging; restart if sources change.
+
+The entry example supports JSONL and Markdown logs delimited by `## ` headings.
+For other formats, inspect the surrounding boundaries and retrieve the complete
+record with explicit source ranges using your environment's offset reader. The
+example reads the selected file internally to locate boundaries but emits only a
+bounded chunk. Filesystem/decoding errors propagate: report that coverage as
+inaccessible, not zero matches. Zero matches means only this literal was absent
+from the supplied readable files, not that the topic was never discussed.
 
 ### File-size targets
 
@@ -370,6 +450,8 @@ The protocol is narrow about what it guarantees. Overselling guarantees is how a
 ## §P4 — Generic quality checklist
 
 Before closing any significant action:
+
+- [ ] Affected `INDEX.md` and folder navigation pointers updated in the same session for file/folder create/remove/rename/move and section/anchor changes
 
 - [ ] Persona/agent signature present in every recorded change and in `handoff.md`
 - [ ] `local/<actor>/<agent>/handoff.md` overwritten with current state (Status, Timestamp HH:MM, Last Action, Pending Step, session close checklist)

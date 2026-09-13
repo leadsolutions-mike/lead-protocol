@@ -13,6 +13,8 @@ Before taking any action, read the rules and the current state in this order:
 5. `.agents/sessions/active_sessions.md` — concurrent-session awareness
 6. `.agents/local/<actor>/<agent>/handoff.md` — state of THIS `(actor, agent)` pair
 
+Before answering a project question, consult relevant `INDEX.md` entries on demand, then read canonical sources. If the map is absent, use `PROJECT_RULES.md §J6` and the independent search recipes in `PROTOCOL_RULES.md §P-Access`; absence never blocks legacy boot. Do not load the full map or its targets at boot.
+
 `PROTOCOL_RULES.md` is read on demand, not in the baseline — `CORE_RULES.md` points to it. See `PROTOCOL_RULES.md §P-Access` for the full load contract.
 
 Do not bypass the protocol. Your work must be logged in your pair's `handoff.md` and, when applicable, in `.agents/decisions.jsonl` and `.agents/JOURNAL.md` at the end of your session.

@@ -13,6 +13,16 @@ re-stated here.
 
 ## [Unreleased]
 
+### Added
+
+- Project-owned root `INDEX.md` navigation, on-demand canonical-source discovery
+  with independent bounded history-search examples, and same-session pointer
+  maintenance (#18). Kernel 2.1.0, CORE 1.6.0, PROJECT_RULES 2.1.0; the persisted
+  handoff checklist remains eight items. Product/package version remains 2.1.5
+  pending maintainer release selection.
+- Create-only INDEX seeding with source/destination preflight, exclusive creation,
+  exact packaged-seed verification, and safe source-adoption instructions.
+
 ## [2.1.5] — 2026-09-12
 
 Maintenance release correcting CLI validation and strengthening release delivery.

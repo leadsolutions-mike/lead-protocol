@@ -1,6 +1,6 @@
 # CORE_RULES.md — Rules index and essential contracts
 
-> Version: 1.5.0 | Updated: 2026-04-21 | Protocol: Lead Protocol v2.0.0
+> Version: 1.6.0 | Updated: 2026-09-13 | Protocol: Lead Protocol v2.0.0
 
 This file is the first thing every agent reads. It is deliberately short: just the index into `PROTOCOL_RULES.md`, the essential contracts an agent must obey at every session start, and the precedence rule. It never duplicates the kernel — only points at it.
 
@@ -16,6 +16,8 @@ Read, in order:
 4. `.agents/AGENTS_MAP.md` — tool-signature → agent-slug map (needed to resolve `<agent>` before forming the per-pair handoff path)
 5. `.agents/sessions/active_sessions.md` — concurrent-session awareness
 6. `.agents/local/<actor>/<agent>/handoff.md` — current state of *this* `(actor, agent)` pair
+
+Before answering a project question, consult relevant `INDEX.md` entries on demand, then read canonical sources. If the map is absent, use `PROJECT_RULES.md §J6` and the independent search recipes in `PROTOCOL_RULES.md §P-Access`; absence never blocks legacy boot. Do not load the full map or its targets at boot.
 
 Listing (not reading) of `.agents/checkpoints/` is enough on boot; individual checkpoints load on demand when relevant. `PROTOCOL_RULES.md` itself is consulted on demand — not in the baseline — per `§P-Access`.
 

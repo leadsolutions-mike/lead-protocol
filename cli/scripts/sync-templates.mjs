@@ -1,7 +1,7 @@
 // Bundles the Lead Protocol templates into dist/templates/ at build time.
 //
 // The template source of truth lives at the repo root (the parent of this
-// package): .agents/, AGENTS.md and CLAUDE.md. npm cannot publish files that
+// package): .agents/, AGENTS.md, CLAUDE.md and INDEX.md. npm cannot publish files that
 // sit outside the package directory, so this script mirrors them into
 // dist/templates/ (the only folder we ship). Runtime code reads from there
 // via getTemplatesDir() in src/lib/project.ts.
@@ -19,7 +19,7 @@ const repoRoot = path.resolve(scriptDir, "..", "..");
 const dest = path.resolve(pkgRoot, "dist", "templates");
 
 const agentsSrc = path.join(repoRoot, ".agents");
-const guidelineFiles = ["AGENTS.md", "CLAUDE.md"];
+const rootFiles = ["AGENTS.md", "CLAUDE.md", "INDEX.md"];
 const excludedDirectoryNames = new Set(["local", "__pycache__", ".pytest_cache"]);
 
 function fail(message) {
@@ -39,7 +39,7 @@ function shouldCopyAgentPath(src) {
 if (!existsSync(agentsSrc)) {
   fail(`source not found: ${agentsSrc} (expected the template .agents/ at the repo root)`);
 }
-for (const file of guidelineFiles) {
+for (const file of rootFiles) {
   if (!existsSync(path.join(repoRoot, file))) {
     fail(`source not found: ${path.join(repoRoot, file)} (expected the template guideline at the repo root)`);
   }
@@ -87,7 +87,7 @@ rmSync(checkpoints, { recursive: true, force: true });
 mkdirSync(checkpoints, { recursive: true });
 writeFileSync(path.join(checkpoints, ".gitkeep"), "", "utf8");
 
-for (const file of guidelineFiles) {
+for (const file of rootFiles) {
   copyFileSync(path.join(repoRoot, file), path.join(dest, file));
 }
 

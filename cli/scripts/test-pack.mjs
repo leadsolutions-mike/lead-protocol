@@ -12,6 +12,9 @@
 // Note: installing the tarball downloads `dependencies` from the registry, so
 // this needs network access (just like a real `npm install` / `npx`).
 
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { execSync } from "node:child_process";
 import {
   mkdtempSync,
@@ -93,6 +96,14 @@ try {
   console.log("[test-pack] OK: dist/templates shipped inside the installed package");
 
   const shippedTemplates = path.join(installed, "dist", "templates");
+  const expectedSeed = readFileSync(path.resolve(pkgRoot, "..", "INDEX.md"));
+  // Reviewed generic seed bytes: changing the distributed map requires review
+  // of the actual rows, not merely retaining a marker or matching a live source.
+  assert.equal(createHash("sha256").update(expectedSeed).digest("hex"),
+    "6bfeca63ea15daa399d41e29e5fbf4d426e2b2440afbd18f5b4e09e11d8571d5");
+  assert.deepEqual(readFileSync(path.join(shippedTemplates, "INDEX.md")), expectedSeed);
+  console.log("[test-pack] OK: exact reviewed generic INDEX seed shipped");
+
   const excludedCacheArtifacts = listRelativeEntries(shippedTemplates).filter((relative) => {
     const segments = relative.split(path.sep);
     return (
@@ -110,6 +121,12 @@ try {
   const target = path.join(tmp, "project");
   mkdirSync(target);
   run("init --yes", `node ${q(bin)} init --yes`, { cwd: target });
+
+  assert.deepEqual(readFileSync(path.join(target, "INDEX.md")), expectedSeed);
+  console.log("[test-pack] Running INDEX fixtures against the packed runtime");
+  execFileSync(process.execPath, ["--test", path.join(pkgRoot, "test", "init-index.test.mjs")], {
+    stdio: "inherit", env: { ...process.env, LP_INDEX_BIN: bin },
+  });
 
   for (const file of ["CLAUDE.md", "AGENTS.md"]) {
     const text = readFileSync(path.join(target, file), "utf-8");
@@ -210,7 +227,9 @@ try {
   }
   console.log("[test-pack] OK: pre-manifest fallback reports unknown product and the actual kernel");
 
-  // 5. Exercise the exact installed lifecycle binary without rebuilding.
+  // 5. Legacy consumers without INDEX still boot; discovery is on demand.
+  rmSync(path.join(target, "INDEX.md"));
+  // Exercise the exact installed lifecycle binary without rebuilding.
   run(
     "session open",
     `node ${q(bin)} session open --actor judge --agent codex --signature "[Codex / GPT-5]" --topic "Package lifecycle smoke" --json`,
@@ -243,7 +262,8 @@ try {
     `node ${q(bin)} session close --actor judge --agent codex --journal not-significant --status stable --last-action "Two-session resume verified." --pending-step None --confirm-checklist --json`,
     { cwd: target },
   );
-  console.log("[test-pack] OK: installed lifecycle completed a two-session resume flow");
+  assert.equal(existsSync(path.join(target, "INDEX.md")), false);
+  console.log("[test-pack] OK: installed lifecycle completed a two-session resume flow without INDEX");
 
   console.log("\n[test-pack] PASS: the locally packed artifact installs and runs like production.");
 } catch (err) {

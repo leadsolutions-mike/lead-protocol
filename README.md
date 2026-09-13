@@ -153,6 +153,82 @@ python .agents/scripts/validate_state.py
 
 That's it. Read the sections below or browse [`.agents/CORE_RULES.md`](.agents/CORE_RULES.md) to understand how agents use the protocol inside your project.
 
+### Knowledge map (unreleased)
+
+Root [INDEX.md](INDEX.md) is a project-owned topic/question → canonical file →
+section or record locator map. It complements `.agents/PROJECT_RULES.md §J6`;
+consult relevant entries on demand, then read the sources. Missing/stale entries
+are not proof of absence. The independent bounded Python search recipes in
+`.agents/PROTOCOL_RULES.md §P-Access` also work without a map, including for older
+and archived history. Keep affected root/folder pointers current in the same
+session as file/folder or section/anchor changes. Optional folder INDEX files or
+README navigation sections are registered in the root map; substantive README
+content remains valid.
+
+This is source-checkout functionality pending a maintainer-selected release;
+v2.1.5 does not contain INDEX.md. The release-pinned quick-start commands above
+intentionally remain unchanged. To try the complete unreleased scaffold, build
+the CLI in a reviewed source checkout (`npm --prefix cli ci`, then
+`npm --prefix cli run build`) and run its absolute `cli/dist/index.js` path with
+`node` from the intended consumer directory, followed by `init`. This init still
+copies other protocol files on a confirmed repeat installation; back them up as
+needed. The new create-only guarantee is for INDEX.
+
+For manual adoption from a reviewed source checkout, save the following as a
+scratch `index-adopt.py` outside either project and run
+`python index-adopt.py path/to/source/INDEX.md path/to/project/INDEX.md` from
+POSIX or PowerShell. Both parent directories must already exist. Run this
+preflight/create step **before** copying other scaffold files; an invalid map
+must stop adoption. It validates the required readable regular source and the
+destination before writing, preserves existing regular maps byte-for-byte,
+rejects symlinks (including dangling ones) and other unsupported types, and uses
+exclusive creation. It never authorizes overwriting an existing consumer map.
+
+<!-- index-adoption-python -->
+```python
+from pathlib import Path
+import stat
+import sys
+
+
+def regular_or_missing(path):
+    try:
+        mode = path.lstat().st_mode
+    except FileNotFoundError:
+        return False
+    if not stat.S_ISREG(mode):
+        raise ValueError(f"INDEX.md must be a regular file: {path}")
+    return True
+
+
+def adopt_index(source, destination):
+    source, destination = Path(source), Path(destination)
+    if not regular_or_missing(source):
+        raise FileNotFoundError(f"Required INDEX.md seed missing: {source}")
+    seed = source.read_bytes()
+    regular_or_missing(destination)
+    try:
+        with destination.open("xb") as output:
+            output.write(seed)
+    except FileExistsError:
+        if not regular_or_missing(destination):
+            raise RuntimeError("INDEX.md changed during exclusive creation")
+        return "preserved"
+    return "created"
+
+
+if __name__ == "__main__":
+    print("INDEX.md " + adopt_index(sys.argv[1], sys.argv[2]))
+```
+
+A regular entry racing with exclusive creation is preserved; an unsupported
+entry is refused. Neither this example nor CLI init promises whole-install
+rollback or protection against arbitrary concurrent filesystem replacement.
+Do not copy this repository's populated operational history into a consumer;
+the CLI build sanitizes sessions, decisions and checkpoints. Keep shared map
+rows generic or project-appropriate, excluding actor-local/private topic rows;
+authorized portable external references follow kernel §P6/§P7.
+
 ### Product and kernel versions
 
 `.agents/manifest.json` is the machine-readable identity of the installed
