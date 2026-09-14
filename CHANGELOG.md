@@ -20,6 +20,7 @@ Kernel 2.1.0; git-substrate module 1.2.2.
 ### Added
 
 - Optional execution evidence for checkpoints and session-close receipts, with portable schema validation, explicit execution statuses, legacy omission support, and LF/CRLF preservation (PR #51).
+- Installed product version becomes the primary status heading; kernel information remains secondary and the JSON contract stays compatible (PR #53).
 
 ### Compatibility and credits
 
