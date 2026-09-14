@@ -13,6 +13,10 @@ re-stated here.
 
 ## [Unreleased]
 
+### Added
+
+- Kernel 2.1.0 execution-evidence contract, portable schema and validated checkpoint/close CLI inputs; explicit execution statuses and illustrative examples preserve legacy omission. Unreleased; final release selection is pending.
+
 ## [2.2.0] — 2026-09-13
 
 Adds state-preserving CLI updates and safer initialization. Kernel remains 2.0.2.
