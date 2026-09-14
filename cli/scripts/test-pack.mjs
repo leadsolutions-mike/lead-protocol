@@ -158,7 +158,7 @@ try {
   writeFileSync(
     projectRules,
     readFileSync(projectRules, "utf-8")
-      .replace("# PROJECT_RULES.md â€” [Project Name]", "# PROJECT_RULES.md â€” Package smoke")
+      .replace("# PROJECT_RULES.md — [Project Name]", "# PROJECT_RULES.md — Package smoke")
       .replace("- **Name:** [Project Name]", "- **Name:** Package smoke")
       .replace(/- \*\*Active modules:\*\*.*$/m, "- **Active modules:** none"),
   );
@@ -248,6 +248,16 @@ try {
   console.log("[test-pack] OK: installed lifecycle completed a two-session resume flow");
 
 
+  // Run the preservation/path regression suite against the installed binary
+  // and installed updater entrypoint, not the source checkout's build.
+  for (const entry of ["lib/updater.js", "lib/session-lifecycle.js"]) {
+    if (!existsSync(path.join(installed, "dist", entry))) throw new Error(`missing entrypoint: ${entry}`);
+  }
+  run("packed init/update safety and preservation regressions", `node --test ${q(path.join(pkgRoot, "test", "updater.test.mjs"))}`, {
+    cwd: tmp,
+    env: { ...process.env, LEAD_PROTOCOL_TEST_BIN: bin },
+  });
+
   // Evidence is exercised through the installed tarball, never a source import.
   const evidenceLib = await import(pathToFileURL(path.join(installed, "dist/lib/execution-evidence.js")).href);
   const schemasDir = path.join(target, ".agents/schemas");
@@ -270,7 +280,7 @@ try {
   if (quotedProcess.status !== 0) throw new Error(`installed CLI rejected legacy fences: ${quotedProcess.stderr}`);
   const quotedCheckpoint = JSON.parse(quotedProcess.stdout);
   const quotedSaved = readFileSync(quotedCheckpoint.checkpoint, "utf8");
-  const expectedQuoted = `# Checkpoint â€” quoted-example\n\n> Timestamp: ${quotedCheckpoint.timestamp}\n> Agent: ${opened.pair.signature}\n> Actor: judge\n> Session: \`${opened.sessionId}\`\n\n${quotedBody}\n`;
+  const expectedQuoted = `# Checkpoint — quoted-example\n\n> Timestamp: ${quotedCheckpoint.timestamp}\n> Agent: ${opened.pair.signature}\n> Actor: judge\n> Session: \`${opened.sessionId}\`\n\n${quotedBody}\n`;
   if (quotedSaved !== expectedQuoted || evidenceLib.parseEvidenceMarkdown(quotedSaved, schemasDir) !== undefined) throw new Error("installed CLI changed legacy body or extracted fake evidence");
   writeFileSync(schemaFile, schemaBytes);
   const stateSnapshot = () => listRelativeEntries(path.join(target, ".agents")).filter(name => !statSync(path.join(target, ".agents", name)).isDirectory()).map(name => [name, readFileSync(path.join(target, ".agents", name)).toString("base64")]);
@@ -301,7 +311,7 @@ try {
     const legacy = spawnSync(process.execPath, args, { cwd: target, encoding: "utf8" });
     if (legacy.status !== 0) throw new Error(`legacy composition refused: ${legacy.stderr}`);
     const checkpoint = JSON.parse(legacy.stdout);
-    const expected = `# Checkpoint â€” ${label}\n\n> Timestamp: ${checkpoint.timestamp}\n> Agent: ${opened.pair.signature}\n> Actor: judge\n> Session: \`${opened.sessionId}\`\n\n${body.trim()}\n`;
+    const expected = `# Checkpoint — ${label}\n\n> Timestamp: ${checkpoint.timestamp}\n> Agent: ${opened.pair.signature}\n> Actor: judge\n> Session: \`${opened.sessionId}\`\n\n${body.trim()}\n`;
     if (readFileSync(checkpoint.checkpoint, "utf8") !== expected) throw new Error("legacy composition bytes changed");
   }
   console.log("[test-pack] OK: unsafe explicit composition refused without mutation; legacy omission bytes preserved");
@@ -350,3 +360,12 @@ try {
   if (JSON.stringify(saved) !== JSON.stringify(closed) || JSON.stringify(evidenceLib.parseCloseReceiptEvidence(saved, schemasDir)) !== JSON.stringify(evidence)) throw new Error("installed close receipt lost evidence");
   if (!readFileSync(handoffPath, "utf8").includes(path.basename(checkpoint.checkpoint))) throw new Error("installed handoff lost checkpoint reference");
   console.log("[test-pack] OK: installed evidence roundtrip, invalid-input preservation, receipt and handoff references");
+
+  console.log("\n[test-pack] PASS: the locally packed artifact installs and runs like production.");
+} catch (err) {
+  process.exitCode = 1;
+  console.error(`\n[test-pack] FAIL: ${err.message}`);
+} finally {
+  rmSync(tmp, { recursive: true, force: true });
+  console.log(`[test-pack] cleaned up ${tmp}`);
+}
