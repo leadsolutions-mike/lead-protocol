@@ -1,6 +1,6 @@
 # PROTOCOL_RULES.md — Lead Protocol framework rules (generic)
 
-> Version: 2.1.0 | Updated: 2026-09-12
+> Version: 2.1.1 | Updated: 2026-09-14
 > Scope: Substrate-agnostic kernel. Opt-in modules live in `modules/` and are activated via `PROJECT_RULES.md §J8`.
 > This file contains no project-specific content — that lives in `PROJECT_RULES.md`.
 
@@ -95,15 +95,25 @@ Once `<actor>` and `<agent>` are resolved, volatile state for this session lives
 
 `.agents/local/` is always gitignored (see the template `.gitignore`). It never travels between contributors.
 
-### Append-at-tail rule (concurrency-safe writes)
+### Append-at-tail rule (bounded concurrency)
 
-Every shared project-layer file that grows over time — `JOURNAL.md`, `LESSONS.md`, `decisions.jsonl`, and each actor's personal `activity.log` — is **append-only at the end of the file**. Prepending (adding at the top) requires reading and rewriting the full file, which corrupts under simultaneous writes on a synced folder (OneDrive, Google Drive). Append at the tail is the only operation that is reasonably safe across every supported substrate (git, cloud-sync, local-only).
+Every shared project-layer file that grows over time — `JOURNAL.md`, `LESSONS.md`, `decisions.jsonl`, and each actor's personal `activity.log` — is **append-only at the end of the file**. Prepending (adding at the top) requires reading and rewriting the full file, increasing the risk of overwriting concurrent changes on a synced folder (OneDrive, Google Drive). Appending reduces that risk across supported substrates (git, cloud-sync, local-only), but provides no locking, atomic-entry, or lossless concurrency guarantee.
 
 Consequences:
 
 - `JOURNAL.md` reads oldest-first, newest-last. Agents consult recent entries via `tail -n N` or the functional equivalent, not `head`. There is no top-of-file index to drift.
 - `LESSONS.md` has no top-of-file table of contents. Queries go through `grep` over inline tags (`grep -A 10 "tags:.*rate-limit" LESSONS.md`).
 - `decisions.jsonl` is JSON Lines, one object per line (see *Decisions log* below), not a JSON array — a JSON array cannot be appended to atomically.
+
+#### Integrity invariants *(v2.1.1+)*
+
+The append-at-tail rule implies three invariants that every writer must uphold, on every substrate:
+
+1. **Correction is a new entry, never a rewrite.** An erroneous past entry is corrected by appending a new entry that references it and states the correction (in `decisions.jsonl`, a new line whose rationale points at the entry it supersedes; in `JOURNAL.md` / `LESSONS.md`, a new dated entry). Rewriting or deleting past content silently invalidates what other agents already read, and rewrites race against concurrent appends.
+2. **Every append ends with a newline.** The file must always end with a final newline. Without it, the next append glues onto the last line; in `decisions.jsonl` that produces two JSON objects on one line, which is structurally invalid JSONL.
+3. **Structural corruption blocks new appends.** Unresolved merge conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`), glued JSONL lines, and a duplicated top-of-file header are structural corruption. On finding any of them, fix the structure first (minimal repair, preserving both sides' entries) and log the repair in `decisions.jsonl` before appending anything else. Never build on corrupted state (see *Recovery mode*).
+
+Enforcement: `scripts/validate_state.py` and the CLI's `lead-protocol validate` run in a plain local directory without Git. They detect conflict markers outside valid Markdown fences, missing final newlines in the three shared append-only logs, duplicated H1 headers outside fences in `JOURNAL.md` / `LESSONS.md`, and malformed or schema-invalid JSONL. JSONL never uses Markdown fence skipping. Mutable sessions and handoffs receive conflict-marker checks, not the append-only newline or H1 checks. These are structural checks: they cannot prove that history was never rewritten, recover semantic entry boundaries, or provide locking. Substrate-specific merge guidance belongs in the optional substrate module.
 
 ### Handoff schema (`local/<actor>/<agent>/handoff.md`) — strict, always overwritten
 
@@ -171,11 +181,11 @@ Meta-repos with two `decisions.jsonl` files (IDE vs. template) see `modules/meta
 
 Why JSONL, not a JSON array:
 
-1. **Atomic append.** Adding a decision is writing one line at the end — no read, parse, re-serialize, rewrite. Two contributors appending from a synced folder in the worst case reorder lines; the file remains structurally valid.
+1. **Small append.** Adding a decision writes one line at the end — no read, parse, re-serialize, rewrite. Atomicity depends on the substrate and writer; concurrent writes or synchronization can still corrupt or lose records. Validate structure before continuing.
 2. **Cheap line-by-line query.** Agents grep or filter line-by-line without loading the full file — consistent with the demand-load contract in `§P-Access`.
 3. **Scales past the point a JSON array becomes an anti-pattern.** A 200-entry JSON array is unreadable without tooling; 200 JSONL lines are trivially filterable.
 
-Never edit past entries. If the file is corrupted (a line is not valid JSON), the recovery agent fixes the structure before appending new entries.
+Never edit past entries. To correct an erroneous entry, append a new corrective entry whose rationale references the entry it supersedes (see *Integrity invariants* above). If the file is corrupted (a line is not valid JSON), the recovery agent fixes the structure before appending new entries.
 
 ### Commit convention
 

@@ -1,0 +1,159 @@
+[
+  {
+    "name": "real conflict",
+    "text": "# Log\n<<<<<<< HEAD\nours\n||||||| base\nold\n=======\ntheirs\n>>>>>>> branch\n",
+    "markers": [
+      2,
+      4,
+      6,
+      8
+    ],
+    "h1": []
+  },
+  {
+    "name": "duplicate header",
+    "text": "# Log\n# Duplicate\n",
+    "markers": [],
+    "h1": [
+      2
+    ]
+  },
+  {
+    "name": "backtick",
+    "text": "# Log\n```md\n# Example\n<<<<<<< HEAD\n=======\n>>>>>>> b\n```\n",
+    "markers": [],
+    "h1": []
+  },
+  {
+    "name": "tilde",
+    "text": "# Log\n~~~md\n# Example\n<<<<<<< HEAD\n=======\n>>>>>>> b\n~~~\n",
+    "markers": [],
+    "h1": []
+  },
+  {
+    "name": "long backtick",
+    "text": "# Log\n````\n```\n# Example\n<<<<<<< HEAD\n=======\n>>>>>>> b\n````\n",
+    "markers": [],
+    "h1": []
+  },
+  {
+    "name": "long tilde",
+    "text": "# Log\n~~~~\n~~~\n# Example\n<<<<<<< HEAD\n=======\n>>>>>>> b\n~~~~\n",
+    "markers": [],
+    "h1": []
+  },
+  {
+    "name": "mixed delimiters",
+    "text": "# Log\n```\n~~~\n# Example\n<<<<<<< HEAD\n=======\n>>>>>>> b\n```\n",
+    "markers": [],
+    "h1": []
+  },
+  {
+    "name": "longer close",
+    "text": "# Log\n```\n# Example\n<<<<<<< HEAD\n=======\n>>>>>>> b\n`````\n",
+    "markers": [],
+    "h1": []
+  },
+  {
+    "name": "three space indent",
+    "text": "# Log\n   ```md\n# Example\n<<<<<<< HEAD\n=======\n>>>>>>> b\n   ``` \t\n",
+    "markers": [],
+    "h1": []
+  },
+  {
+    "name": "tilde info backtick",
+    "text": "# Log\n~~~ info `\n# Example\n<<<<<<< HEAD\n=======\n>>>>>>> b\n~~~\n",
+    "markers": [],
+    "h1": []
+  },
+  {
+    "name": "invalid close info",
+    "text": "# Log\n```\n``` info\n# Example\n<<<<<<< HEAD\n=======\n>>>>>>> b\n```\n",
+    "markers": [],
+    "h1": []
+  },
+  {
+    "name": "four space close",
+    "text": "# Log\n```\n    ```\n# Example\n<<<<<<< HEAD\n=======\n>>>>>>> b\n```\n",
+    "markers": [],
+    "h1": []
+  },
+  {
+    "name": "tab close",
+    "text": "# Log\n```\n\t```\n# Example\n<<<<<<< HEAD\n=======\n>>>>>>> b\n```\n",
+    "markers": [],
+    "h1": []
+  },
+  {
+    "name": "unclosed",
+    "text": "# Log\n```\n# Example\n<<<<<<< HEAD\n=======\n>>>>>>> b\n\n",
+    "markers": [],
+    "h1": []
+  },
+  {
+    "name": "short fence",
+    "text": "# Log\n``\n# Duplicate\n<<<<<<< HEAD\n",
+    "markers": [
+      4
+    ],
+    "h1": [
+      3
+    ]
+  },
+  {
+    "name": "four space opener",
+    "text": "# Log\n    ```\n# Duplicate\n<<<<<<< HEAD\n",
+    "markers": [
+      4
+    ],
+    "h1": [
+      3
+    ]
+  },
+  {
+    "name": "tab opener",
+    "text": "# Log\n\t```\n# Duplicate\n<<<<<<< HEAD\n",
+    "markers": [
+      4
+    ],
+    "h1": [
+      3
+    ]
+  },
+  {
+    "name": "backtick in info",
+    "text": "# Log\n```lang `bad`\n# Duplicate\n<<<<<<< HEAD\n",
+    "markers": [
+      4
+    ],
+    "h1": [
+      3
+    ]
+  },
+  {
+    "name": "corruption after valid close",
+    "text": "# Log\n```\n# Example\n```\n# Duplicate\n<<<<<<< HEAD\n",
+    "markers": [
+      6
+    ],
+    "h1": [
+      5
+    ]
+  },
+  {
+    "name": "corruption after longer close",
+    "text": "# Log\n~~~\n# Example\n~~~~ \t\n# Duplicate\n=======\n",
+    "markers": [
+      6
+    ],
+    "h1": [
+      5
+    ]
+  },
+  {
+    "name": "marker controls",
+    "text": "# Log\ntext <<<<<<< HEAD\n  <<<<<<< HEAD\n<<<<<<\n========\n",
+    "markers": [],
+    "h1": []
+  }
+]

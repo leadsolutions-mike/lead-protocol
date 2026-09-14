@@ -1,6 +1,6 @@
 # modules/git-substrate.md — Git / pull-request substrate rules
 
-> Version: 1.3.0 | Updated: 2026-09-12 | Protocol: Lead Protocol v2.0.1+
+> Version: 1.4.0 | Updated: 2026-09-14 | Protocol: Lead Protocol v2.0.1+
 > Scope: Opt-in module. Activate via `PROJECT_RULES.md §J8 Active modules: git-substrate`.
 > Applies to: repositories hosted on a git platform with pull-request support (GitHub, GitLab, Bitbucket, etc.).
 
@@ -114,6 +114,22 @@ git worktree remove "<directory-a>"
 ```
 
 Repeat for the other worktree or optional review directory after its own verification. If removal refuses, investigate; do not force it. For clones, apply the same status and preservation checks before removing only the intended directory through your platform's normal file operations.
+
+## §M-git-8 — Merge handling for append-only logs *(v1.4.0+)*
+
+`JOURNAL.md`, `LESSONS.md`, and `decisions.jsonl` are append-at-tail (`PROTOCOL_RULES §P3`). Concurrent branch appends can conflict at the tail. Leftover conflict markers must be repaired before further appends.
+
+**Union merge attribute.** The template ships `.agents/.gitattributes` declaring `merge=union` for the three append-only logs. Git's built-in union driver combines conflicting lines without inserting conflict markers in those hunks. It requires no custom driver installation. Relative line order is arbitrary; this is line-based merging, not an entry-preservation or locking guarantee.
+
+**Deliberately excluded from union merge:**
+
+- `sessions/active_sessions.md`: rows are removed on session close, so this file is not append-only. A union merge would silently resurrect removed rows, making closed sessions reappear as live and poisoning the takeover rule. Conflicts here are rare (the file is small and short-lived) and must be resolved by hand.
+- `local/**`: per-pair state is gitignored (§M-git-5) and never merged.
+- Rules files (`PROTOCOL_RULES.md`, `PROJECT_RULES.md`, modules): edited in place by design; a union merge would concatenate divergent rule text. Normal conflict resolution applies.
+
+**Post-merge validation.** After any merge (or rebase) that touched files under `.agents/`, run the validator before continuing work: `python .agents/scripts/validate_state.py` or `lead-protocol validate`. It detects leftover conflict markers, a missing final newline, and duplicated top-of-file headers. Treat a failure as blocking (fix the state before any new append, per §P3 *Integrity invariants*).
+
+**Limitations (when human review is still required):** Two Markdown appends with the same heading can collapse into one heading followed by both bodies, losing the semantic boundary between entries. Byte-identical JSONL lines can appear only once after a merge; this can also happen when both resulting files are identical, without invoking union. Prefer distinguishable entry headings, such as a timestamp plus actor, agent, and session identifier, and distinct record identities where the schema permits. Unique headings reduce collisions but do not make whole entries atomic or guarantee lossless merges. `merge=union` is line-based and trusts that both sides only appended. If a branch violated §P3 and rewrote earlier lines, union merge can silently combine the rewrite with the original instead of surfacing a conflict. The validator catches structural symptoms, not semantic ones, so a merge that mixes two half-written entries into valid-looking text still needs a human eye. When in doubt, `git log -p` on the state file shows what each side actually changed.
 
 ## Optional tooling that ships with the template
 
