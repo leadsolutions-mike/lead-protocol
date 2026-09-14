@@ -4,7 +4,7 @@
 
 When one AI coding session ends, it records what it did, what remains, and why it made the calls it made. The next session — in the same tool or a different one, minutes or days later — can read that state and continue from there.
 
-> Current version: **2.2.0**
+> Current version: **2.3.0**
 
 This version identifies the stable release represented by this source. For an
 installation, use a published release and confirm its package is available;
@@ -116,7 +116,7 @@ Lead Protocol fills the operational-state slot in the broader agent stack:
 ```bash
 # Clone the latest stable release
 # Check https://github.com/mmilanez/lead-protocol/releases for the current version number
-git clone --branch v2.2.0 --depth 1 https://github.com/mmilanez/lead-protocol.git /tmp/lp
+git clone --branch v2.3.0 --depth 1 https://github.com/mmilanez/lead-protocol.git /tmp/lp
 
 # Copy the scaffold into your project
 cp -R /tmp/lp/.agents   your-project/.agents
@@ -136,7 +136,7 @@ python .agents/scripts/validate_state.py
 ```powershell
 # Clone the latest stable release
 # Check https://github.com/mmilanez/lead-protocol/releases for the current version number
-git clone --branch v2.2.0 --depth 1 https://github.com/mmilanez/lead-protocol.git $env:TEMP\lp
+git clone --branch v2.3.0 --depth 1 https://github.com/mmilanez/lead-protocol.git $env:TEMP\lp
 
 # Copy the scaffold into your project
 Copy-Item -Recurse $env:TEMP\lp\.agents   your-project\.agents
@@ -174,14 +174,14 @@ kernel only from `PROTOCOL_RULES.md`.
 The optional CLI turns the boot and close contract into three commands:
 
 ```bash
-npx @leadsolutions/lead-protocol@2.2.0 session open \
+npx @leadsolutions/lead-protocol@2.3.0 session open \
   --actor judge --agent codex --topic "Try the lifecycle" --json
 
 echo "A self-contained checkpoint body" | \
-  npx @leadsolutions/lead-protocol@2.2.0 checkpoint \
+  npx @leadsolutions/lead-protocol@2.3.0 checkpoint \
     --actor judge --agent codex --title first-checkpoint --json
 
-npx @leadsolutions/lead-protocol@2.2.0 session close \
+npx @leadsolutions/lead-protocol@2.3.0 session close \
   --actor judge --agent codex \
   --journal not-significant --status stable \
   --last-action "Verified the lifecycle." --pending-step None \
@@ -189,7 +189,7 @@ npx @leadsolutions/lead-protocol@2.2.0 session close \
 
 # Start a clean second session. The JSON receipt includes the terminal handoff
 # from the first session under `previousHandoff`, proving immediate resume.
-npx @leadsolutions/lead-protocol@2.2.0 session open \
+npx @leadsolutions/lead-protocol@2.3.0 session open \
   --actor judge --agent codex --topic "Resume from prior handoff" --json
 ```
 
@@ -223,7 +223,7 @@ interrupted operations. Codex and the maintainer turned those findings into
 public fixes and regression tests.
 
 That hardening first shipped in `v2.1.2` and remains part of the current
-`v2.2.0` release. `v2.1.1` is immutable and does not contain those fixes. The
+`v2.3.0` release. `v2.1.1` is immutable and does not contain those fixes. The
 model configuration, Codex thread ID, findings, and validation are recorded in
 the [public adversarial review](docs/build-week-2026/gpt-5.6-lifecycle-review.md).
 
@@ -242,8 +242,8 @@ Use the CLI's framework update command to retain project rules, decisions, sessi
 history and actor-local state:
 
 ```bash
-npx --yes @leadsolutions/lead-protocol@2.2.0 update --dry-run
-npx --yes @leadsolutions/lead-protocol@2.2.0 update --yes
+npx --yes @leadsolutions/lead-protocol@2.3.0 update --dry-run
+npx --yes @leadsolutions/lead-protocol@2.3.0 update --yes
 ```
 
 `init` is for new installations. It refuses any existing `.agents` entry unless
@@ -352,6 +352,7 @@ Patch bumps (Z) never break anything. Minor bumps (Y) may introduce new features
 
 | Version | Highlights |
 |---|---|
+| **2.3.0** | Optional execution evidence. Kernel 2.1.0; git-substrate 1.2.2. |
 | **2.2.0** | Adds state-preserving CLI `update`, refuses accidental reinitialization of existing projects, and validates static path hazards before writes (#50, building on #26; addresses #25 and #40). Kernel remains 2.0.2. |
 | **2.1.5** | Corrects CLI validation of populated handoffs containing placeholder examples (#49), keeps SPDX identifiers consistent, includes the fast-uri lockfile update (#48), and verifies immutable npm publication plus installed consumer behavior. Kernel remains 2.0.2. |
 | **2.1.4** | Adds explicit installed product/kernel identity through `.agents/manifest.json`, corrects human and JSON status reporting with a safe legacy fallback, and reconciles branch-ordering prose with the backward-compatible eight-item handoff checklist. Kernel 2.0.2; git-substrate module 1.2.2. |
@@ -409,3 +410,8 @@ Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 ---
 
 *Built by [mmilanez](https://github.com/mmilanez) — born from managing AI agents across 100+ repositories.*
+
+Execution evidence for implementation handoffs is documented in
+[the protocol's session-close contract](.agents/PROTOCOL_RULES.md#execution-evidence--session-closeouts), with
+[portable schema](.agents/schemas/execution-evidence.schema.json) and checkpoint/close CLI support. Evidence
+is globally optional for compatibility; implementation completion records execution or explicit inability reasons.

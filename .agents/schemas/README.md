@@ -4,6 +4,7 @@ Formal schemas for the state files that carry the protocol's operational truth:
 
 | Schema | Validates | Format |
 |---|---|---|
+| [`execution-evidence.schema.json`](execution-evidence.schema.json) | Optional checkpoint / close-receipt `execution_evidence` object | JSON Schema Draft 2020-12 |
 | [`handoff.schema.json`](handoff.schema.json) | `.agents/local/<actor>/<agent>/handoff.md` (parsed) | JSON Schema Draft 2020-12 |
 | [`decisions.entry.schema.json`](decisions.entry.schema.json) | One entry (one line) of `.agents/decisions.jsonl` | JSON Schema Draft 2020-12 |
 
@@ -83,3 +84,16 @@ Current iteration: these schemas land in their v2.0.0 form alongside Lead Protoc
 - The schemas validate **structure**, not semantics. A decision entry with a plausible-but-meaningless `rationale` passes validation.
 - Cross-field invariants that cannot be expressed in JSON Schema (e.g., "when `status=superseded`, the replacing entry must also exist") are enforced by `validate_state.py` / the CLI, not the schema.
 - The handoff schema validates a parsed representation — it cannot check markdown formatting issues (missing `**` around field labels, wrong section order). The parser in `validate_state.py` handles that layer.
+
+## `execution-evidence.schema.json` (v1.0.0)
+
+Defines optional execution evidence, independent of the immutable handoff. Validate the object itself, not
+its checkpoint/receipt envelope. Both command and browser `not_run`/`blocked` results require nonblank reasons;
+unperformed browser validation cannot report passed/failed. See `PROTOCOL_RULES.md §P3` for two explicitly
+illustrative examples and the normative implementation-completion rule. Empty/omitted evidence is compatible,
+not completion proof. Validation checks structure only, never whether execution actually occurred.
+
+The CLI validates `--evidence` on checkpoint/close and canonical embedded checkpoint sections before writes.
+`cli/src/lib/execution-evidence.ts` exposes object validation and canonical checkpoint/receipt evidence parsers.
+Legacy `validate_state.py` and CLI `validate` do not consume evidence; their handoff/decisions scope is unchanged.
+The Python schema-conformance tests exercise Draft202012Validator directly, without historical parser changes.

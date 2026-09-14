@@ -13,6 +13,19 @@ re-stated here.
 
 ## [Unreleased]
 
+## [2.3.0] — 2026-09-14
+
+Kernel 2.1.0; git-substrate module 1.2.2.
+
+### Added
+
+- Optional execution evidence for checkpoints and session-close receipts, with portable schema validation, explicit execution statuses, legacy omission support, and LF/CRLF preservation (PR #51).
+
+### Compatibility and credits
+
+- State-preserving updates, safe initialization, and installed updater regression coverage from PR #50 remain included.
+- Contributions by @leadsolutions-mike (Mike).
+
 ## [2.2.0] — 2026-09-13
 
 Adds state-preserving CLI updates and safer initialization. Kernel remains 2.0.2.

@@ -1,6 +1,6 @@
 # PROTOCOL_RULES.md — Lead Protocol framework rules (generic)
 
-> Version: 2.0.2 | Updated: 2026-07-20
+> Version: 2.1.0 | Updated: 2026-09-12
 > Scope: Substrate-agnostic kernel. Opt-in modules live in `modules/` and are activated via `PROJECT_RULES.md §J8`.
 > This file contains no project-specific content — that lives in `PROJECT_RULES.md`.
 
@@ -209,6 +209,113 @@ At the end of a non-trivial session, the agent **must** update every applicable 
 
 **JOURNAL promotion — procedural, not heuristic.** At session close, the agent asks the user exactly one procedural question: *"Did this session produce a structurally significant delivery? If yes, promote to JOURNAL."* The user replies with one word. No background detection, no heuristic guessing — orchestration of agents operates on **explicit commands**, never on state inference. The criterion for a "yes" is the six-month test: *if a new contributor arriving in six months would still benefit from seeing this entry, it belongs in JOURNAL; otherwise it belongs only in the actor's personal `activity.log`*.
 
+### Execution evidence — session closeouts
+
+`execution_evidence` is **optional globally** for compatibility. For implementation/code/UI/infrastructure
+completion, the normative rule is: an implementation task **must not be marked complete solely because files were changed**.
+Record the validation actually executed and its results, or explicitly record why validation could not be
+performed using `not_run` or `blocked` with a nonblank `reason`. A closed session or `STABLE` handoff is not a
+claim that every implementation task passed. Preserve failed checks and limitations for the next agent.
+Planning and read-only sessions may omit evidence; docs changes that claim implementation completion follow
+the same rule. Empty evidence, empty checks, and legacy omission remain structurally valid but provide **no
+proof of task completion**. Do not use them to satisfy the implementation-completion rule.
+
+The portable object is defined by `schemas/execution-evidence.schema.json` (Draft 2020-12). It is attached as
+`execution_evidence` in a close-receipt JSON object, or in a checkpoint's reserved `## Execution Evidence`
+section containing one fenced `json` envelope with that key. It is **not a new handoff field**; the immutable
+handoff stays unchanged. Put explicit checkpoint/receipt references in the existing `Blockers/Context` or
+`Pending Step` field. When closing, publish the relevant receipt evidence or its durable references in a shared
+checkpoint so the next agent can discover it even when the ignored pair directory is unavailable. Private
+chat, an ignored local receipt, or a machine-local log path alone is not sufficient cross-machine evidence.
+Do not copy secrets into artifacts; preserve reproducible references accessible to the intended reviewer.
+
+Each command check requires `command` and `result`. Status meanings:
+
+- `passed`: the stated check ran and met its stated expectations.
+- `failed`: it ran and did not meet expectations; describe the failure (reason recommended).
+- `not_run`: no execution was attempted; a nonblank reason is required.
+- `blocked`: a concrete obstacle prevented execution; a nonblank reason is required.
+
+The same reason requirement applies to browser results. `browser_validation` is optional when inapplicable.
+If present, both `performed` and `result` are required: `performed:false` permits only `not_run` or `blocked`
+with a reason (for example, "No browser flow in this CLI-only change"); `performed:true` permits `passed`
+or `failed`. Absence or `performed:false` never means a browser check passed.
+
+Record exact commands, per-check `cwd` or shared `environment.cwd`, runtime/platform and package-manager
+versions, branch and commit identifying the tested tree (identify dirty-tree changes in `unresolved`), and
+CI run URLs. `checks[].artifact` can point to logs or reports; `browser_validation.evidence` can point to
+screenshots or recordings. Use durable artifact paths/URLs with sufficient provenance to reproduce the result.
+The schema validates structure, **not execution truth**: it does not execute commands, inspect links, certify
+artifacts, infer applicability, or decide completion. The legacy receipt's `validation` fields concern state
+format/checklist checks only and do not mean implementation tests passed.
+
+CLI support: `checkpoint --evidence evidence.json` and `session close --evidence evidence.json` accept the
+object itself (without an outer `execution_evidence` key), validate against the project's schema before state
+writes, and reject malformed JSON, invalid schema or evidence. Checkpoint body files may instead contain the
+canonical section; do not also supply `--evidence`. JSON is rendered deterministically with markup characters
+escaped and without a duplicate human table. All existing identity, transaction and close-checklist guards
+still apply. Without evidence the old output shapes and schema-free omission behavior remain compatible.
+The TS evidence parser reads the canonical checkpoint section and optional close-receipt field. The existing
+CLI `validate` command and Python `validate_state.py` still validate handoffs/decisions only; they do not scan
+checkpoints or attest receipt evidence. Use the dedicated evidence library or a Draft 2020-12 validator for
+portable evidence validation. Missing or broken evidence schemas fail when evidence is supplied.
+
+**Illustrative closeout receipt excerpt — not executed mission evidence.** The four check outcomes below
+are examples, not a completed implementation. A real CLI close receipt also retains its existing session,
+pair and state-validation fields. Extract `execution_evidence` for the CLI's input file.
+
+```json
+{
+  "execution_evidence": {
+    "git": {
+      "branch": "example/billing-retry",
+      "commit": "abc1234",
+      "files_changed": 8
+    },
+    "environment": {
+      "runtime": "Node.js 22.0.0 on Linux",
+      "package_manager": "npm 10.0.0",
+      "cwd": "/workspace/billing",
+      "ci_run": "https://example.invalid/ci/runs/123"
+    },
+    "checks": [
+      {
+        "command": "npm run typecheck",
+        "cwd": "/workspace/billing",
+        "result": "passed",
+        "artifact": "https://example.invalid/artifacts/typecheck.log"
+      },
+      {
+        "command": "npm test",
+        "result": "failed",
+        "reason": "Two retry assertions failed",
+        "artifact": "https://example.invalid/artifacts/tests.log"
+      },
+      {
+        "command": "npm run e2e",
+        "result": "not_run",
+        "reason": "External sandbox is unavailable"
+      },
+      {
+        "command": "npm run integration",
+        "result": "blocked",
+        "reason": "Sandbox credentials have not been provisioned"
+      }
+    ],
+    "browser_validation": {
+      "performed": true,
+      "flow": "Login → billing → retry payment",
+      "result": "failed",
+      "reason": "Retry banner did not appear",
+      "evidence": "https://example.invalid/artifacts/retry.png"
+    },
+    "unresolved": [
+      "Fix retry assertions and banner; run sandbox validation before claiming implementation completion."
+    ]
+  }
+}
+```
+
 ### Branch ordering rule *(v2.0.1+)*
 
 Session close is the **final operational step on the feature branch**. Complete all session-close artifacts that belong to a pull request before opening or merging that pull request.
@@ -281,6 +388,64 @@ Template — content must be self-contained so a peer agent reads it without the
 
 ## What specifically needs second-opinion
 <the exact part where contrarian input would be most valuable>
+```
+
+**Illustrative checkpoint evidence — not executed mission evidence.** After a checkpoint's narrative,
+append the following reserved section. These mixed results preserve incomplete validation honestly. Reference
+the checkpoint from the active registry, then from existing handoff context at close; do not rely on chat.
+
+## Execution Evidence
+
+```json
+{
+  "execution_evidence": {
+    "git": {
+      "branch": "example/billing-retry",
+      "commit": "abc1234",
+      "files_changed": 8
+    },
+    "environment": {
+      "runtime": "Node.js 22.0.0 on Linux",
+      "package_manager": "npm 10.0.0",
+      "cwd": "/workspace/billing",
+      "ci_run": "https://example.invalid/ci/runs/123"
+    },
+    "checks": [
+      {
+        "command": "npm run typecheck",
+        "cwd": "/workspace/billing",
+        "result": "passed",
+        "artifact": "https://example.invalid/artifacts/typecheck.log"
+      },
+      {
+        "command": "npm test",
+        "result": "failed",
+        "reason": "Two retry assertions failed",
+        "artifact": "https://example.invalid/artifacts/tests.log"
+      },
+      {
+        "command": "npm run e2e",
+        "result": "not_run",
+        "reason": "External sandbox is unavailable"
+      },
+      {
+        "command": "npm run integration",
+        "result": "blocked",
+        "reason": "Sandbox credentials have not been provisioned"
+      }
+    ],
+    "browser_validation": {
+      "performed": false,
+      "result": "not_run",
+      "reason": "No browser flow applies to this CLI checkpoint",
+      "evidence": "https://example.invalid/artifacts/previous-retry.png"
+    },
+    "unresolved": [
+      "The screenshot reference is a previous-run artifact, not proof of a browser run at this checkpoint.",
+      "Fix failing tests; sandbox checks remain unavailable."
+    ]
+  }
+}
 ```
 
 **Usage pattern:** when the owner asks for a second opinion from a peer agent, the current agent writes the checkpoint and updates the `Last checkpoint` column of its row in `active_sessions.md`. The owner opens the peer agent in another window; the peer agent boots per `§P5`, sees the fresh checkpoint referenced in `active_sessions.md`, reads it, and responds with contrarian input. No copy-paste required.
