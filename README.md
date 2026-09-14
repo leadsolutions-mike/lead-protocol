@@ -368,7 +368,7 @@ Patch bumps (Z) never break anything. Minor bumps (Y) may introduce new features
 
 | Version | Highlights |
 |---|---|
-| **2.3.0** | Optional execution evidence, primary product status. Kernel 2.1.0; git-substrate 1.2.2. |
+| **2.3.0** | Optional execution evidence, primary product status, concurrent worktree guidance. Kernel 2.1.0; git-substrate 1.3.0. |
 | **2.2.0** | Adds state-preserving CLI `update`, refuses accidental reinitialization of existing projects, and validates static path hazards before writes (#50, building on #26; addresses #25 and #40). Kernel remains 2.0.2. |
 | **2.1.5** | Corrects CLI validation of populated handoffs containing placeholder examples (#49), keeps SPDX identifiers consistent, includes the fast-uri lockfile update (#48), and verifies immutable npm publication plus installed consumer behavior. Kernel remains 2.0.2. |
 | **2.1.4** | Adds explicit installed product/kernel identity through `.agents/manifest.json`, corrects human and JSON status reporting with a safe legacy fallback, and reconciles branch-ordering prose with the backward-compatible eight-item handoff checklist. Kernel 2.0.2; git-substrate module 1.2.2. |

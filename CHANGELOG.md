@@ -15,12 +15,13 @@ re-stated here.
 
 ## [2.3.0] — 2026-09-14
 
-Kernel 2.1.0; git-substrate module 1.2.2.
+Kernel 2.1.0; git-substrate module 1.3.0.
 
 ### Added
 
 - Optional execution evidence for checkpoints and session-close receipts, with portable schema validation, explicit execution statuses, legacy omission support, and LF/CRLF preservation (PR #51).
 - Installed product version becomes the primary status heading; kernel information remains secondary and the JSON contract stays compatible (PR #53).
+- Optional Git guidance separates branch ownership from working-directory isolation, preserves serial handoffs, and documents safe cleanup and shared-resource limits (PR #54).
 
 ### Compatibility and credits
 
