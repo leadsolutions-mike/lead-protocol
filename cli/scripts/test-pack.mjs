@@ -216,7 +216,7 @@ try {
   writeFileSync(
     projectRules,
     readFileSync(projectRules, "utf-8")
-      .replace("# PROJECT_RULES.md â€” [Project Name]", "# PROJECT_RULES.md â€” Package smoke")
+      .replace("# PROJECT_RULES.md — [Project Name]", "# PROJECT_RULES.md — Package smoke")
       .replace("- **Name:** [Project Name]", "- **Name:** Package smoke")
       .replace(/- \*\*Active modules:\*\*.*$/m, "- **Active modules:** none"),
   );
@@ -351,7 +351,7 @@ try {
   if (quotedProcess.status !== 0) throw new Error(`installed CLI rejected legacy fences: ${quotedProcess.stderr}`);
   const quotedCheckpoint = JSON.parse(quotedProcess.stdout);
   const quotedSaved = readFileSync(quotedCheckpoint.checkpoint, "utf8");
-  const expectedQuoted = `# Checkpoint â€” quoted-example\n\n> Timestamp: ${quotedCheckpoint.timestamp}\n> Agent: ${opened.pair.signature}\n> Actor: judge\n> Session: \`${opened.sessionId}\`\n\n${quotedBody}\n`;
+  const expectedQuoted = `# Checkpoint — quoted-example\n\n> Timestamp: ${quotedCheckpoint.timestamp}\n> Agent: ${opened.pair.signature}\n> Actor: judge\n> Session: \`${opened.sessionId}\`\n\n${quotedBody}\n`;
   if (quotedSaved !== expectedQuoted || evidenceLib.parseEvidenceMarkdown(quotedSaved, schemasDir) !== undefined) throw new Error("installed CLI changed legacy body or extracted fake evidence");
   writeFileSync(schemaFile, schemaBytes);
   const stateSnapshot = () => listRelativeEntries(path.join(target, ".agents")).filter(name => !statSync(path.join(target, ".agents", name)).isDirectory()).map(name => [name, readFileSync(path.join(target, ".agents", name)).toString("base64")]);
@@ -382,7 +382,7 @@ try {
     const legacy = spawnSync(process.execPath, args, { cwd: target, encoding: "utf8" });
     if (legacy.status !== 0) throw new Error(`legacy composition refused: ${legacy.stderr}`);
     const checkpoint = JSON.parse(legacy.stdout);
-    const expected = `# Checkpoint â€” ${label}\n\n> Timestamp: ${checkpoint.timestamp}\n> Agent: ${opened.pair.signature}\n> Actor: judge\n> Session: \`${opened.sessionId}\`\n\n${body.trim()}\n`;
+    const expected = `# Checkpoint — ${label}\n\n> Timestamp: ${checkpoint.timestamp}\n> Agent: ${opened.pair.signature}\n> Actor: judge\n> Session: \`${opened.sessionId}\`\n\n${body.trim()}\n`;
     if (readFileSync(checkpoint.checkpoint, "utf8") !== expected) throw new Error("legacy composition bytes changed");
   }
   console.log("[test-pack] OK: unsafe explicit composition refused without mutation; legacy omission bytes preserved");
