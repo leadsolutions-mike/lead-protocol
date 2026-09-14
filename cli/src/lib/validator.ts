@@ -6,10 +6,90 @@ import { parseHandoffMd, isPristineHandoff } from "./handoff-parser.js";
 
 export interface ValidationResult {
   file: string;
-  type: "handoff" | "decisions";
+  type: "handoff" | "decisions" | "log" | "sessions";
   errors: string[];
   skipped?: boolean;
   skipReason?: string;
+}
+
+// Git writes conflict markers as exactly seven marker characters at the
+// start of a line: `<<<<<<< <label>`, `=======`, `>>>>>>> <label>`, and
+// (diff3 style) `||||||| <label>`. Requiring the full seven-character run
+// anchored at column 0 excludes inline prose. Markdown fences are handled below.
+const CONFLICT_MARKER_RE = /^(<{7}( .*)?|={7}|>{7}( .*)?|\|{7}( .*)?)$/;
+
+// Preserve source line numbers while excluding valid Markdown fences only.
+function* visibleLines(text: string, markdown = false): Generator<[number, string]> {
+  let fenceChar = "";
+  let fenceLength = 0;
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (markdown) {
+      const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+      if (fenceChar) {
+        if (match && match[1][0] === fenceChar && match[1].length >= fenceLength
+          && /^[ \t]*$/.test(match[2])) fenceChar = "";
+        continue;
+      }
+      if (match && (match[1][0] !== "`" || !match[2].includes("`"))) {
+        fenceChar = match[1][0];
+        fenceLength = match[1].length;
+        continue;
+      }
+    }
+    yield [i + 1, line];
+  }
+}
+
+function findConflictMarkers(text: string, markdown = false): number[] {
+  return [...visibleLines(text, markdown)]
+    .filter(([, line]) => CONFLICT_MARKER_RE.test(line)).map(([lineno]) => lineno);
+}
+
+// An empty file is fine; a non-empty file must end with a newline,
+// otherwise the next append glues onto the last line (and corrupts
+// JSONL structurally).
+function hasFinalNewline(text: string): boolean {
+  return text === "" || text.endsWith("\n");
+}
+
+// Top-level `# ` headers beyond the first one, ignoring fenced code blocks.
+// More than one H1 in JOURNAL.md or LESSONS.md is the classic symptom of a
+// badly resolved merge that duplicated the file header.
+function findDuplicateH1(text: string): number[] {
+  return [...visibleLines(text, true)].filter(([, line]) => line.startsWith("# "))
+    .map(([lineno]) => lineno).slice(1);
+}
+
+interface IntegrityOptions {
+  markdown?: boolean;
+  checkNewline?: boolean;
+  checkH1?: boolean;
+}
+
+// Structural integrity checks shared by every state file type
+// (PROTOCOL_RULES §P3 append-at-tail invariants).
+export function integrityErrors(text: string, opts: IntegrityOptions = {}): string[] {
+  const errors: string[] = [];
+  for (const lineno of findConflictMarkers(text, opts.markdown)) {
+    errors.push(
+      `line ${lineno}: unresolved merge conflict marker (resolve the merge before appending new entries)`,
+    );
+  }
+  if (opts.checkNewline && !hasFinalNewline(text)) {
+    errors.push(
+      "missing final newline (the next append would glue onto the last line)",
+    );
+  }
+  if (opts.checkH1) {
+    for (const lineno of findDuplicateH1(text)) {
+      errors.push(
+        `line ${lineno}: duplicated top-level header (symptom of a badly resolved merge; keep a single \`# \` header)`,
+      );
+    }
+  }
+  return errors;
 }
 
 function createValidator() {
@@ -56,6 +136,17 @@ export function validateDecisionsJsonl(
   const validate = ajv.compile(schema);
 
   const text = readFileSync(filePath, "utf-8");
+
+  // Structural integrity first: a file holding unresolved conflict markers
+  // is corrupted and skips the schema pass (marker lines are not JSON, and
+  // per-line schema noise would bury the real problem).
+  const structural = integrityErrors(text, { checkNewline: true });
+  if (structural.some((e) => e.includes("conflict marker"))) {
+    result.errors.push(...structural);
+    return result;
+  }
+  result.errors.push(...structural);
+
   const lines = text.split("\n");
 
   for (let i = 0; i < lines.length; i++) {
@@ -98,6 +189,14 @@ export function validateHandoff(
 
   const text = readFileSync(filePath, "utf-8");
 
+  // A handoff holding conflict markers is corrupted regardless of whether
+  // it looks pristine; parsing it would only add noise.
+  const markerErrors = integrityErrors(text, { markdown: true });
+  if (markerErrors.length > 0) {
+    result.errors.push(...markerErrors);
+    return result;
+  }
+
   if (isPristineHandoff(text)) {
     result.skipped = true;
     result.skipReason = "pristine template";
@@ -123,5 +222,37 @@ export function validateHandoff(
     }
   }
 
+  return result;
+}
+
+// Integrity checks for the append-only markdown logs (JOURNAL.md,
+// LESSONS.md). No schema applies; entries are free-form.
+export function validateMarkdownLog(filePath: string): ValidationResult {
+  const result: ValidationResult = { file: filePath, type: "log", errors: [] };
+
+  if (!existsSync(filePath)) {
+    result.errors.push("file not found");
+    return result;
+  }
+
+  const text = readFileSync(filePath, "utf-8");
+  result.errors.push(...integrityErrors(text, { markdown: true, checkNewline: true, checkH1: true }));
+  return result;
+}
+
+// Integrity checks for sessions/active_sessions.md. Only conflict markers
+// are checked: rows are legitimately removed on session close, so this file
+// is not append-only and neither the final-newline invariant nor the
+// single-header invariant applies here.
+export function validateActiveSessions(filePath: string): ValidationResult {
+  const result: ValidationResult = { file: filePath, type: "sessions", errors: [] };
+
+  if (!existsSync(filePath)) {
+    result.errors.push("file not found");
+    return result;
+  }
+
+  const text = readFileSync(filePath, "utf-8");
+  result.errors.push(...integrityErrors(text, { markdown: true }));
   return result;
 }

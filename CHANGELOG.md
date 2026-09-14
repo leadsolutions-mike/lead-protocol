@@ -16,6 +16,23 @@ re-stated here.
 ### Added
 
 - Kernel 2.1.0 execution-evidence contract, portable schema and validated checkpoint/close CLI inputs; explicit execution statuses and illustrative examples preserve legacy omission. Unreleased; final release selection is pending.
+- Integrate Leonardo Buares' PR #27 append-only integrity feature on current
+  2.2.0: structural checks in the Python and CLI validators, broader optional
+  hook/CI coverage, and union attributes for JOURNAL, LESSONS, and decisions.
+  Mutable sessions remain excluded from union merging.
+- Substrate-neutral integrity guidance and bounded optional Git merge guidance:
+  union is line-based, same-heading entries can collapse semantic boundaries,
+  and identical JSONL lines can deduplicate. Unique headings reduce collisions;
+  no locking or lossless guarantee is provided.
+
+### Fixed
+
+- Recognize real LF and CRLF conflict markers consistently in both validators.
+- Ignore Markdown markers and H1 examples inside valid backtick or tilde fences,
+  tracking delimiter length, indentation, and closing syntax. JSONL remains strict.
+
+This integration is unreleased. Product/CLI metadata remains 2.2.0 and kernel
+metadata includes the unreleased evidence contract; no publication is part of this preview.
 
 ## [2.2.0] — 2026-09-13
 
