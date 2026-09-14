@@ -171,8 +171,8 @@ try {
   const gitModule = readFileSync(
     path.join(target, ".agents", "modules", "git-substrate.md"), "utf8",
   ).replace(/\r\n/g, "\n");
-  if (!/^> Version: 1\.3\.0\s*\|/m.test(gitModule)) {
-    throw new Error("installed git-substrate module must be version 1.3.0");
+  if (!/^> Version: 1\.4\.0\s*\|/m.test(gitModule)) {
+    throw new Error("installed git-substrate module must be version 1.4.0");
   }
   const isolation = gitModule.match(/^## §M-git-7\b([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1]
     .replace(/[`*]/g, "").replace(/\s+/g, " ");
@@ -206,7 +206,7 @@ try {
       if (!isolation.includes(command)) throw new Error(`installed scaffold missing example: ${command}`);
     }
   }
-  console.log("[test-pack] OK: installed git-substrate 1.3.0 includes concurrent isolation and serial opt-outs");
+  console.log("[test-pack] OK: installed git-substrate 1.4.0 includes concurrent isolation and serial opt-outs");
 
   console.log("[test-pack] OK: init created .agents/ and tagged CLAUDE.md / AGENTS.md");
 

@@ -63,7 +63,7 @@ def test_concurrent_isolation_contract(contract: str) -> None:
 
 def test_concurrent_examples_use_two_directories_and_common_base() -> None:
     content = GENERIC_BRANCH_RULES[1].read_text(encoding="utf-8")
-    assert re.search(r"^> Version: 1\.3\.0 \| Updated: 2026-09-12\b", content, re.M)
+    assert re.search(r"^> Version: 1\.4\.0 \| Updated: 2026-09-14\b", content, re.M)
     for writer in ("a", "b"):
         assert f'git worktree add -b "<branch-{writer}>" "<directory-{writer}>" "<integration-base>"' in content
         assert f'git clone "<repository-url>" "<clone-{writer}>"' in content

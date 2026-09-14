@@ -1,6 +1,6 @@
 # PROTOCOL_RULES.md — Lead Protocol framework rules (generic)
 
-> Version: 2.1.0 | Updated: 2026-09-12
+> Version: 2.1.1 | Updated: 2026-09-14
 > Scope: Substrate-agnostic kernel. Opt-in modules live in `modules/` and are activated via `PROJECT_RULES.md §J8`.
 > This file contains no project-specific content — that lives in `PROJECT_RULES.md`.
 
@@ -105,7 +105,7 @@ Consequences:
 - `LESSONS.md` has no top-of-file table of contents. Queries go through `grep` over inline tags (`grep -A 10 "tags:.*rate-limit" LESSONS.md`).
 - `decisions.jsonl` is JSON Lines, one object per line (see *Decisions log* below), not a JSON array — a JSON array cannot be appended to atomically.
 
-#### Integrity invariants *(Unreleased)*
+#### Integrity invariants *(v2.1.1+)*
 
 The append-at-tail rule implies three invariants that every writer must uphold, on every substrate:
 

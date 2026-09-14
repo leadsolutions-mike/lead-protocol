@@ -13,26 +13,22 @@ re-stated here.
 
 ## [Unreleased]
 
+## [2.3.0] — 2026-09-14
+
+Kernel 2.1.1; git-substrate module 1.4.0.
+
 ### Added
 
-- Kernel 2.1.0 execution-evidence contract, portable schema and validated checkpoint/close CLI inputs; explicit execution statuses and illustrative examples preserve legacy omission. Unreleased; final release selection is pending.
-- Integrate Leonardo Buares' PR #27 append-only integrity feature on current
-  2.2.0: structural checks in the Python and CLI validators, broader optional
-  hook/CI coverage, and union attributes for JOURNAL, LESSONS, and decisions.
-  Mutable sessions remain excluded from union merging.
-- Substrate-neutral integrity guidance and bounded optional Git merge guidance:
-  union is line-based, same-heading entries can collapse semantic boundaries,
-  and identical JSONL lines can deduplicate. Unique headings reduce collisions;
-  no locking or lossless guarantee is provided.
+- Optional execution evidence for checkpoints and session-close receipts, with portable schema validation, explicit execution statuses, legacy omission support, and LF/CRLF preservation (PR #51).
+- Installed product version becomes the primary status heading; kernel information remains secondary and the JSON contract stays compatible (PR #53).
+- Optional Git guidance separates branch ownership from working-directory isolation, preserves serial handoffs, and documents safe cleanup and shared-resource limits (PR #54).
+- Append-only integrity validation catches unresolved conflict markers, missing final newlines, and duplicate log headers. Optional Git union attributes cover JOURNAL, LESSONS, and decisions; mutable sessions remain excluded (PR #56, successor to PR #27).
+- Union merging remains line-based: identical records may deduplicate and matching Markdown headings may lose entry boundaries. It provides no locking, atomic-entry, or lossless-merge guarantee.
 
-### Fixed
+### Compatibility and credits
 
-- Recognize real LF and CRLF conflict markers consistently in both validators.
-- Ignore Markdown markers and H1 examples inside valid backtick or tilde fences,
-  tracking delimiter length, indentation, and closing syntax. JSONL remains strict.
-
-This integration is unreleased. Product/CLI metadata remains 2.2.0 and kernel
-metadata includes the unreleased evidence contract; no publication is part of this preview.
+- State-preserving updates, safe initialization, and installed updater regression coverage from PR #50 remain included.
+- Contributions by @leadsolutions-mike (Mike); PR #56 builds on Leonardo Buares's PR #27.
 
 ## [2.2.0] — 2026-09-13
 

@@ -13,7 +13,7 @@
 #     would reappear as live). Conflicts there must be resolved by hand.
 #   - local/**: per-pair state is gitignored and never merged.
 #
-# See modules/git-substrate.md §M-git-7 for the full merge contract.
+# See modules/git-substrate.md §M-git-8 for the full merge contract.
 
 JOURNAL.md merge=union
 LESSONS.md merge=union

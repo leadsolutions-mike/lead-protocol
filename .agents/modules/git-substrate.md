@@ -1,6 +1,6 @@
 # modules/git-substrate.md — Git / pull-request substrate rules
 
-> Version: 1.3.0 | Updated: 2026-09-12 | Protocol: Lead Protocol v2.0.1+
+> Version: 1.4.0 | Updated: 2026-09-14 | Protocol: Lead Protocol v2.0.1+
 > Scope: Opt-in module. Activate via `PROJECT_RULES.md §J8 Active modules: git-substrate`.
 > Applies to: repositories hosted on a git platform with pull-request support (GitHub, GitLab, Bitbucket, etc.).
 
@@ -115,7 +115,7 @@ git worktree remove "<directory-a>"
 
 Repeat for the other worktree or optional review directory after its own verification. If removal refuses, investigate; do not force it. For clones, apply the same status and preservation checks before removing only the intended directory through your platform's normal file operations.
 
-## §M-git-8 — Merge handling for append-only logs *(Unreleased)*
+## §M-git-8 — Merge handling for append-only logs *(v1.4.0+)*
 
 `JOURNAL.md`, `LESSONS.md`, and `decisions.jsonl` are append-at-tail (`PROTOCOL_RULES §P3`). Concurrent branch appends can conflict at the tail. Leftover conflict markers must be repaired before further appends.
 
