@@ -319,6 +319,16 @@ try {
   console.log("[test-pack] OK: installed lifecycle completed a two-session resume flow");
 
 
+  // Run the preservation/path regression suite against the installed binary
+  // and installed updater entrypoint, not the source checkout's build.
+  for (const entry of ["lib/updater.js", "lib/session-lifecycle.js"]) {
+    if (!existsSync(path.join(installed, "dist", entry))) throw new Error(`missing entrypoint: ${entry}`);
+  }
+  run("packed init/update safety and preservation regressions", `node --test ${q(path.join(pkgRoot, "test", "updater.test.mjs"))}`, {
+    cwd: tmp,
+    env: { ...process.env, LEAD_PROTOCOL_TEST_BIN: bin },
+  });
+
   // Evidence is exercised through the installed tarball, never a source import.
   const evidenceLib = await import(pathToFileURL(path.join(installed, "dist/lib/execution-evidence.js")).href);
   const schemasDir = path.join(target, ".agents/schemas");
