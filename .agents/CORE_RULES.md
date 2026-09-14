@@ -1,6 +1,7 @@
 # CORE_RULES.md — Rules index and essential contracts
 
 > Version: 1.5.0 | Updated: 2026-04-21 | Protocol: Lead Protocol v2.0.0
+> Unreleased changes: first-run setup contract; version assignment deferred to release preparation.
 
 This file is the first thing every agent reads. It is deliberately short: just the index into `PROTOCOL_RULES.md`, the essential contracts an agent must obey at every session start, and the precedence rule. It never duplicates the kernel — only points at it.
 
@@ -12,12 +13,15 @@ Read, in order:
 
 1. `.agents/CORE_RULES.md` (this file)
 2. `.agents/PROJECT_RULES.md` — business context; read `§J8 Active modules` first
+2a. Apply the `§P10` setup gate before loading modules (see the first-run contract below).
 3. `.agents/modules/<scope>.md` — for each scope listed in `§J8 Active modules`, in declaration order
 4. `.agents/AGENTS_MAP.md` — tool-signature → agent-slug map (needed to resolve `<agent>` before forming the per-pair handoff path)
 5. `.agents/sessions/active_sessions.md` — concurrent-session awareness
 6. `.agents/local/<actor>/<agent>/handoff.md` — current state of *this* `(actor, agent)` pair
 
 Listing (not reading) of `.agents/checkpoints/` is enough on boot; individual checkpoints load on demand when relevant. `PROTOCOL_RULES.md` itself is consulted on demand — not in the baseline — per `§P-Access`.
+
+After step 2, if `PROJECT_RULES.md` is still pristine (see *First-run setup is a hard boot gate* below), run the `§P10` setup gate before proceeding to step 3.
 
 ---
 
@@ -60,6 +64,10 @@ Agents never edit `.agents/AGENTS_MAP.md` autonomously. They *propose* additions
 ### Session close must be verified
 
 Every non-trivial session closes by self-verifying the checklist in `handoff.md`. One item is a **procedural question** to the user: *"Did this session produce a structurally significant delivery? If yes, promote to JOURNAL."* No heuristic, no auto-detection. Detail: `PROTOCOL_RULES.md §P3 — Session close ritual`.
+
+### First-run setup is a hard boot gate
+
+If `PROJECT_RULES.md` is absent or still pristine (the `§J1` Name or the `§J8` substrate/modules still contain a `[...]` placeholder), the agent must run the first-run setup interview and write the answers before doing any other requested work, even work the user asked for first. The user may reply `later` or `skip` to defer for this session only; the gate re-fires next session. Non-interactive environments (CI, Codespaces, devcontainers) warn without writing configuration. A repo-root `.lead-protocol-source` sentinel disables the gate for the framework's own source repo. Setup preserves existing values and clarifies required answers. The gate self-clears when critical fields contain no literal `[`. Detail: `PROTOCOL_RULES.md §P10`.
 
 ---
 

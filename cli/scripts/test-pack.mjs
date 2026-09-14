@@ -68,6 +68,11 @@ try {
     .pop();
   const tgz = path.join(tmp, tgzName);
   console.log(`[test-pack] tarball: ${tgz}`);
+  const tarEntries = capture("Inspecting packed sentinel boundary", `tar -tzf ${q(tgz)}`);
+  if (tarEntries.split(/\r?\n/).some(entry => entry.split("/").includes(".lead-protocol-source"))) {
+    throw new Error("source sentinel leaked into tarball");
+  }
+  console.log("[test-pack] OK: source sentinel absent from tarball");
 
   // 3. Install the tarball into a throwaway consumer (real files allowlist + deps).
   writeFileSync(

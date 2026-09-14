@@ -51,6 +51,10 @@ for (const mode of ['direct copy', 'CLI']) test(`${mode} ships setup without sou
   if (mode === 'direct copy') for (const file of ['.agents','AGENTS.md','CLAUDE.md']) cpSync(path.join(root,file),path.join(target,file),{recursive:true});
   else run('init','--yes');
   pointers(target, mode === 'CLI');
+  for (const file of ['.agents/CORE_RULES.md', '.agents/PROTOCOL_RULES.md', '.agents/PROJECT_RULES.md', '.agents/modules/meta-repo.md']) {
+    assert.equal(read(target, file), read(root, file), file);
+    assert.equal(read(templates, file), read(root, file), `bundled ${file}`);
+  }
   assert.ok(!existsSync(path.join(target,'.git')));
   for (const base of [target, templates]) assert.ok(!existsSync(path.join(base,'.lead-protocol-source')));
   const project = read(target,'.agents/PROJECT_RULES.md').replaceAll('[Project Name]','Local fixture').replace(/- \*\*Active substrate:\*\*.*$/m,'- **Active substrate:** local').replace(/- \*\*Active modules:\*\*.*$/m,'- **Active modules:** none');

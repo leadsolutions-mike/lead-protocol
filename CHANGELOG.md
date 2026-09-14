@@ -13,6 +13,14 @@ re-stated here.
 
 ## [Unreleased]
 
+### Added
+
+- Instruction-only first-run setup gate (`PROTOCOL_RULES §P10`), integrated from
+  Leonardo Buares's PR #22 (#21). Runs before module loading, preserves existing
+  configuration, clarifies required answers, and supports session-only deferral,
+  non-interactive warnings without configuration writes, and a source-only sentinel.
+  Release/package/kernel version assignment is deferred to release preparation.
+
 ## [2.2.0] — 2026-09-13
 
 Adds state-preserving CLI updates and safer initialization. Kernel remains 2.0.2.
