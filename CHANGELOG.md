@@ -13,6 +13,31 @@ re-stated here.
 
 ## [Unreleased]
 
+## [2.4.0] — 2026-09-15
+
+Kernel 2.2.0; CORE 1.7.0; PROJECT_RULES 2.1.0.
+
+### Added
+
+- Project-owned root `INDEX.md` navigation, on-demand canonical-source discovery
+  with independent bounded history-search examples, and same-session pointer
+  maintenance (PR #55, issue #18; contributed by Mike / leadsolutions-mike).
+  The persisted handoff checklist remains eight items.
+- Create-only INDEX seeding with source/destination preflight, exclusive creation,
+  exact packaged-seed verification, and safe source-adoption instructions.
+
+### Fixed
+
+- Keep source JOURNAL/LESSONS history out of newly installed project seeds while
+  preserving source logs and existing consumer history. Invalid source seed
+  boundaries refuse instead of distributing populated history.
+- Route quick-start installation through the pinned CLI and manual source-based
+  adoption through sanitized build output, including create-only INDEX handling.
+- Read physical JSONL lines consistently when retrieving knowledge-map evidence,
+  including Unicode line separators inside records and subsequent hit locators.
+- Accept native Windows CRLF seed checkouts in the reviewed-content package gate
+  while retaining exact installed bytes, and use explicit UTF-8 in Python tests.
+
 ## [2.3.0] — 2026-09-14
 
 Kernel 2.1.1; git-substrate module 1.4.0.

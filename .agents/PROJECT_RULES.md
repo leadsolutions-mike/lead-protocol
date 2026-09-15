@@ -1,6 +1,6 @@
 # PROJECT_RULES.md — [Project Name]
 
-> Version: 2.0.1 | Updated: 2026-07-20 | Protocol: Lead Protocol v2.0.0
+> Version: 2.1.0 | Updated: 2026-09-13 | Protocol: Lead Protocol v2.0.0
 > Scope: Project-specific rules. Never overwritten by framework upgrades.
 
 ---
@@ -41,6 +41,7 @@ Each agent listed here has its own `.agents/local/<actor>/<agent>/` state folder
 When creating, renaming, or removing any file:
 
 - [ ] `README.md` updated if the change affects project structure
+- [ ] Affected `INDEX.md` and folder navigation pointers updated in the same session for file/folder create/remove/rename/move and section/anchor changes
 - [ ] Tests updated or added
 - [ ] [Add project-specific operational checkpoints here]
 
@@ -48,6 +49,7 @@ When creating, renaming, or removing any file:
 
 | Question | File |
 |---|---|
+| Project topic/section discovery (on demand; optional on legacy projects) | `INDEX.md` — complements this inventory |
 | Project biography (structurally significant deliveries) | `.agents/JOURNAL.md` |
 | Project-level lessons | `.agents/LESSONS.md` |
 | Decisions audit trail | `.agents/decisions.jsonl` |
