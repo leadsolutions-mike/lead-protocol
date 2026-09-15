@@ -51,12 +51,12 @@ test('fresh INDEX uses exact seed bytes (isolated runtime source)', t => {
   assert.match(result.stdout, /INDEX.md created/);
 });
 for (const content of ['custom map\n', '', 'custom\r\nmap\r\n']) {
-  test(`initial and repeat init preserve regular INDEX ${JSON.stringify(content)}`, t => {
+  test(`initial and force init preserve regular INDEX ${JSON.stringify(content)}`, t => {
     const { dir, target } = fixture(t), bin = isolatedBin(dir);
     const index = path.join(target, 'INDEX.md');
     writeFileSync(index, content);
     for (let i = 0; i < 2; i++) {
-      const result = run(target, bin);
+      const result = run(target, bin, i === 0 ? ['init', '--yes'] : ['init', '--force', '--yes']);
       assert.equal(result.status, 0, result.stderr);
       assert.deepEqual(readFileSync(index), Buffer.from(content));
       assert.match(result.stdout, /INDEX.md preserved/);
@@ -76,7 +76,7 @@ for (const kind of ['directory', 'live-link', 'dangling-link', ...(process.platf
     else if (kind === 'fifo') assert.equal(spawnSync('mkfifo', [index]).status, 0);
     else symlinkSync(kind === 'live-link' ? outside : path.join(dir, 'absent'), index);
     const before = snapshot(target);
-    const result = run(target, bin);
+    const result = run(target, bin, ['init', '--force', '--yes']);
     assert.notEqual(result.status, 0);
     assert.match(result.stderr + result.stdout, /INDEX.md/);
     assert.deepEqual(snapshot(target), before);
@@ -120,7 +120,7 @@ for (const content of [null, 'consumer']) {
   });
 }
 
-test('both managed pointers include discovery with unchanged normalization baseline', t => {
+test('both managed pointers include discovery while preserving bytes outside managed blocks', t => {
   const { dir, target } = fixture(t), bin = isolatedBin(dir);
   for (const file of ['AGENTS.md', 'CLAUDE.md']) {
     writeFileSync(path.join(target, file), 'before\n\n\n<lead-protocol>old</lead-protocol>\n\n\nafter\n');
@@ -128,8 +128,8 @@ test('both managed pointers include discovery with unchanged normalization basel
   assert.equal(run(target, bin).status, 0);
   for (const file of ['AGENTS.md', 'CLAUDE.md']) {
     const text = readFileSync(path.join(target, file), 'utf8');
-    assert.match(text, /^before\n\n<lead-protocol>/);
-    assert.match(text, /<\/lead-protocol>\n\nafter\n$/);
+    assert.match(text, /^before\n\n\n<lead-protocol>/);
+    assert.match(text, /<\/lead-protocol>\n\n\nafter\n$/);
     assert.match(text, /Before answering a project question/);
     assert.match(text, /§J6/);
     assert.match(text, /§P-Access/);
@@ -217,3 +217,46 @@ test('exclusive creation still preserves a regular map arriving at the write bou
   assert.equal(readFileSync(index, 'utf8'), 'late consumer\r\n');
   assert.deepEqual(readFileSync(seedFile), seed);
 });
+
+for (const content of [null, '', 'consumer\r\nmap\r\n']) {
+  test(`update seeds missing INDEX and preserves regular maps: ${JSON.stringify(content)}`, t => {
+    const { target } = fixture(t);
+    assert.equal(run(target).status, 0);
+    const index = path.join(target, 'INDEX.md');
+    if (content === null) rmSync(index);
+    else writeFileSync(index, content);
+    const before = snapshot(target);
+    const dry = run(target, runtimeBin, ['update', '--dry-run']);
+    assert.equal(dry.status, 0, dry.stderr);
+    assert.deepEqual(snapshot(target), before);
+    for (let i = 0; i < 2; i++) {
+      const result = run(target, runtimeBin, ['update', '--yes']);
+      assert.equal(result.status, 0, result.stderr);
+      assert.deepEqual(readFileSync(index), content === null ? seed : Buffer.from(content));
+    }
+  });
+}
+
+for (const kind of ['directory', 'live-link', 'dangling-link', 'missing-source']) {
+  test(`update rejects INDEX ${kind} before any write, including dry-run`, t => {
+    const { dir, target } = fixture(t), bin = isolatedBin(dir);
+    assert.equal(run(target, bin).status, 0);
+    const index = path.join(target, 'INDEX.md');
+    const outside = path.join(dir, 'outside');
+    writeFileSync(outside, 'untouched');
+    if (kind === 'missing-source') rmSync(path.join(dir, 'dist/templates/INDEX.md'));
+    else {
+      rmSync(index);
+      if (kind === 'directory') mkdirSync(index);
+      else symlinkSync(kind === 'live-link' ? outside : path.join(dir, 'absent'), index);
+    }
+    writeFileSync(path.join(target, '.agents/CORE_RULES.md'), 'old framework');
+    const before = snapshot(dir);
+    for (const option of ['--dry-run', '--yes']) {
+      const result = run(target, bin, ['update', option]);
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr + result.stdout, /INDEX.md/);
+      assert.deepEqual(snapshot(dir), before);
+    }
+  });
+}

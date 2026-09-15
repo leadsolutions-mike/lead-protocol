@@ -1,6 +1,6 @@
 # PROTOCOL_RULES.md — Lead Protocol framework rules (generic)
 
-> Version: 2.1.1 | Updated: 2026-09-13
+> Version: 2.1.1 | Updated: 2026-09-14
 > Scope: Substrate-agnostic kernel. Opt-in modules live in `modules/` and are activated via `PROJECT_RULES.md §J8`.
 > This file contains no project-specific content — that lives in `PROJECT_RULES.md`.
 
@@ -95,15 +95,25 @@ Once `<actor>` and `<agent>` are resolved, volatile state for this session lives
 
 `.agents/local/` is always gitignored (see the template `.gitignore`). It never travels between contributors.
 
-### Append-at-tail rule (concurrency-safe writes)
+### Append-at-tail rule (bounded concurrency)
 
-Every shared project-layer file that grows over time — `JOURNAL.md`, `LESSONS.md`, `decisions.jsonl`, and each actor's personal `activity.log` — is **append-only at the end of the file**. Prepending (adding at the top) requires reading and rewriting the full file, which corrupts under simultaneous writes on a synced folder (OneDrive, Google Drive). Append at the tail is the only operation that is reasonably safe across every supported substrate (git, cloud-sync, local-only).
+Every shared project-layer file that grows over time — `JOURNAL.md`, `LESSONS.md`, `decisions.jsonl`, and each actor's personal `activity.log` — is **append-only at the end of the file**. Prepending (adding at the top) requires reading and rewriting the full file, increasing the risk of overwriting concurrent changes on a synced folder (OneDrive, Google Drive). Appending reduces that risk across supported substrates (git, cloud-sync, local-only), but provides no locking, atomic-entry, or lossless concurrency guarantee.
 
 Consequences:
 
 - `JOURNAL.md` reads oldest-first, newest-last. Agents consult recent entries via `tail -n N` or the functional equivalent, not `head`. There is no top-of-file index to drift.
 - `LESSONS.md` has no top-of-file table of contents. Queries go through `grep` over inline tags (`grep -A 10 "tags:.*rate-limit" LESSONS.md`).
 - `decisions.jsonl` is JSON Lines, one object per line (see *Decisions log* below), not a JSON array — a JSON array cannot be appended to atomically.
+
+#### Integrity invariants *(v2.1.1+)*
+
+The append-at-tail rule implies three invariants that every writer must uphold, on every substrate:
+
+1. **Correction is a new entry, never a rewrite.** An erroneous past entry is corrected by appending a new entry that references it and states the correction (in `decisions.jsonl`, a new line whose rationale points at the entry it supersedes; in `JOURNAL.md` / `LESSONS.md`, a new dated entry). Rewriting or deleting past content silently invalidates what other agents already read, and rewrites race against concurrent appends.
+2. **Every append ends with a newline.** The file must always end with a final newline. Without it, the next append glues onto the last line; in `decisions.jsonl` that produces two JSON objects on one line, which is structurally invalid JSONL.
+3. **Structural corruption blocks new appends.** Unresolved merge conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`), glued JSONL lines, and a duplicated top-of-file header are structural corruption. On finding any of them, fix the structure first (minimal repair, preserving both sides' entries) and log the repair in `decisions.jsonl` before appending anything else. Never build on corrupted state (see *Recovery mode*).
+
+Enforcement: `scripts/validate_state.py` and the CLI's `lead-protocol validate` run in a plain local directory without Git. They detect conflict markers outside valid Markdown fences, missing final newlines in the three shared append-only logs, duplicated H1 headers outside fences in `JOURNAL.md` / `LESSONS.md`, and malformed or schema-invalid JSONL. JSONL never uses Markdown fence skipping. Mutable sessions and handoffs receive conflict-marker checks, not the append-only newline or H1 checks. These are structural checks: they cannot prove that history was never rewritten, recover semantic entry boundaries, or provide locking. Substrate-specific merge guidance belongs in the optional substrate module.
 
 ### Handoff schema (`local/<actor>/<agent>/handoff.md`) — strict, always overwritten
 
@@ -171,11 +181,11 @@ Meta-repos with two `decisions.jsonl` files (IDE vs. template) see `modules/meta
 
 Why JSONL, not a JSON array:
 
-1. **Atomic append.** Adding a decision is writing one line at the end — no read, parse, re-serialize, rewrite. Two contributors appending from a synced folder in the worst case reorder lines; the file remains structurally valid.
+1. **Small append.** Adding a decision writes one line at the end — no read, parse, re-serialize, rewrite. Atomicity depends on the substrate and writer; concurrent writes or synchronization can still corrupt or lose records. Validate structure before continuing.
 2. **Cheap line-by-line query.** Agents grep or filter line-by-line without loading the full file — consistent with the demand-load contract in `§P-Access`.
 3. **Scales past the point a JSON array becomes an anti-pattern.** A 200-entry JSON array is unreadable without tooling; 200 JSONL lines are trivially filterable.
 
-Never edit past entries. If the file is corrupted (a line is not valid JSON), the recovery agent fixes the structure before appending new entries.
+Never edit past entries. To correct an erroneous entry, append a new corrective entry whose rationale references the entry it supersedes (see *Integrity invariants* above). If the file is corrupted (a line is not valid JSON), the recovery agent fixes the structure before appending new entries.
 
 ### Commit convention
 
@@ -210,6 +220,113 @@ At the end of a non-trivial session, the agent **must** update every applicable 
 Before closing, verify affected `INDEX.md` and folder navigation pointers were maintained in the same session for file/folder create/remove/rename/move and section/anchor changes. This is a quality check, not a ninth persisted handoff checklist item.
 
 **JOURNAL promotion — procedural, not heuristic.** At session close, the agent asks the user exactly one procedural question: *"Did this session produce a structurally significant delivery? If yes, promote to JOURNAL."* The user replies with one word. No background detection, no heuristic guessing — orchestration of agents operates on **explicit commands**, never on state inference. The criterion for a "yes" is the six-month test: *if a new contributor arriving in six months would still benefit from seeing this entry, it belongs in JOURNAL; otherwise it belongs only in the actor's personal `activity.log`*.
+
+### Execution evidence — session closeouts
+
+`execution_evidence` is **optional globally** for compatibility. For implementation/code/UI/infrastructure
+completion, the normative rule is: an implementation task **must not be marked complete solely because files were changed**.
+Record the validation actually executed and its results, or explicitly record why validation could not be
+performed using `not_run` or `blocked` with a nonblank `reason`. A closed session or `STABLE` handoff is not a
+claim that every implementation task passed. Preserve failed checks and limitations for the next agent.
+Planning and read-only sessions may omit evidence; docs changes that claim implementation completion follow
+the same rule. Empty evidence, empty checks, and legacy omission remain structurally valid but provide **no
+proof of task completion**. Do not use them to satisfy the implementation-completion rule.
+
+The portable object is defined by `schemas/execution-evidence.schema.json` (Draft 2020-12). It is attached as
+`execution_evidence` in a close-receipt JSON object, or in a checkpoint's reserved `## Execution Evidence`
+section containing one fenced `json` envelope with that key. It is **not a new handoff field**; the immutable
+handoff stays unchanged. Put explicit checkpoint/receipt references in the existing `Blockers/Context` or
+`Pending Step` field. When closing, publish the relevant receipt evidence or its durable references in a shared
+checkpoint so the next agent can discover it even when the ignored pair directory is unavailable. Private
+chat, an ignored local receipt, or a machine-local log path alone is not sufficient cross-machine evidence.
+Do not copy secrets into artifacts; preserve reproducible references accessible to the intended reviewer.
+
+Each command check requires `command` and `result`. Status meanings:
+
+- `passed`: the stated check ran and met its stated expectations.
+- `failed`: it ran and did not meet expectations; describe the failure (reason recommended).
+- `not_run`: no execution was attempted; a nonblank reason is required.
+- `blocked`: a concrete obstacle prevented execution; a nonblank reason is required.
+
+The same reason requirement applies to browser results. `browser_validation` is optional when inapplicable.
+If present, both `performed` and `result` are required: `performed:false` permits only `not_run` or `blocked`
+with a reason (for example, "No browser flow in this CLI-only change"); `performed:true` permits `passed`
+or `failed`. Absence or `performed:false` never means a browser check passed.
+
+Record exact commands, per-check `cwd` or shared `environment.cwd`, runtime/platform and package-manager
+versions, branch and commit identifying the tested tree (identify dirty-tree changes in `unresolved`), and
+CI run URLs. `checks[].artifact` can point to logs or reports; `browser_validation.evidence` can point to
+screenshots or recordings. Use durable artifact paths/URLs with sufficient provenance to reproduce the result.
+The schema validates structure, **not execution truth**: it does not execute commands, inspect links, certify
+artifacts, infer applicability, or decide completion. The legacy receipt's `validation` fields concern state
+format/checklist checks only and do not mean implementation tests passed.
+
+CLI support: `checkpoint --evidence evidence.json` and `session close --evidence evidence.json` accept the
+object itself (without an outer `execution_evidence` key), validate against the project's schema before state
+writes, and reject malformed JSON, invalid schema or evidence. Checkpoint body files may instead contain the
+canonical section; do not also supply `--evidence`. JSON is rendered deterministically with markup characters
+escaped and without a duplicate human table. All existing identity, transaction and close-checklist guards
+still apply. Without evidence the old output shapes and schema-free omission behavior remain compatible.
+The TS evidence parser reads the canonical checkpoint section and optional close-receipt field. The existing
+CLI `validate` command and Python `validate_state.py` still validate handoffs/decisions only; they do not scan
+checkpoints or attest receipt evidence. Use the dedicated evidence library or a Draft 2020-12 validator for
+portable evidence validation. Missing or broken evidence schemas fail when evidence is supplied.
+
+**Illustrative closeout receipt excerpt — not executed mission evidence.** The four check outcomes below
+are examples, not a completed implementation. A real CLI close receipt also retains its existing session,
+pair and state-validation fields. Extract `execution_evidence` for the CLI's input file.
+
+```json
+{
+  "execution_evidence": {
+    "git": {
+      "branch": "example/billing-retry",
+      "commit": "abc1234",
+      "files_changed": 8
+    },
+    "environment": {
+      "runtime": "Node.js 22.0.0 on Linux",
+      "package_manager": "npm 10.0.0",
+      "cwd": "/workspace/billing",
+      "ci_run": "https://example.invalid/ci/runs/123"
+    },
+    "checks": [
+      {
+        "command": "npm run typecheck",
+        "cwd": "/workspace/billing",
+        "result": "passed",
+        "artifact": "https://example.invalid/artifacts/typecheck.log"
+      },
+      {
+        "command": "npm test",
+        "result": "failed",
+        "reason": "Two retry assertions failed",
+        "artifact": "https://example.invalid/artifacts/tests.log"
+      },
+      {
+        "command": "npm run e2e",
+        "result": "not_run",
+        "reason": "External sandbox is unavailable"
+      },
+      {
+        "command": "npm run integration",
+        "result": "blocked",
+        "reason": "Sandbox credentials have not been provisioned"
+      }
+    ],
+    "browser_validation": {
+      "performed": true,
+      "flow": "Login → billing → retry payment",
+      "result": "failed",
+      "reason": "Retry banner did not appear",
+      "evidence": "https://example.invalid/artifacts/retry.png"
+    },
+    "unresolved": [
+      "Fix retry assertions and banner; run sandbox validation before claiming implementation completion."
+    ]
+  }
+}
+```
 
 ### Branch ordering rule *(v2.0.1+)*
 
@@ -283,6 +400,64 @@ Template — content must be self-contained so a peer agent reads it without the
 
 ## What specifically needs second-opinion
 <the exact part where contrarian input would be most valuable>
+```
+
+**Illustrative checkpoint evidence — not executed mission evidence.** After a checkpoint's narrative,
+append the following reserved section. These mixed results preserve incomplete validation honestly. Reference
+the checkpoint from the active registry, then from existing handoff context at close; do not rely on chat.
+
+## Execution Evidence
+
+```json
+{
+  "execution_evidence": {
+    "git": {
+      "branch": "example/billing-retry",
+      "commit": "abc1234",
+      "files_changed": 8
+    },
+    "environment": {
+      "runtime": "Node.js 22.0.0 on Linux",
+      "package_manager": "npm 10.0.0",
+      "cwd": "/workspace/billing",
+      "ci_run": "https://example.invalid/ci/runs/123"
+    },
+    "checks": [
+      {
+        "command": "npm run typecheck",
+        "cwd": "/workspace/billing",
+        "result": "passed",
+        "artifact": "https://example.invalid/artifacts/typecheck.log"
+      },
+      {
+        "command": "npm test",
+        "result": "failed",
+        "reason": "Two retry assertions failed",
+        "artifact": "https://example.invalid/artifacts/tests.log"
+      },
+      {
+        "command": "npm run e2e",
+        "result": "not_run",
+        "reason": "External sandbox is unavailable"
+      },
+      {
+        "command": "npm run integration",
+        "result": "blocked",
+        "reason": "Sandbox credentials have not been provisioned"
+      }
+    ],
+    "browser_validation": {
+      "performed": false,
+      "result": "not_run",
+      "reason": "No browser flow applies to this CLI checkpoint",
+      "evidence": "https://example.invalid/artifacts/previous-retry.png"
+    },
+    "unresolved": [
+      "The screenshot reference is a previous-run artifact, not proof of a browser run at this checkpoint.",
+      "Fix failing tests; sandbox checks remain unavailable."
+    ]
+  }
+}
 ```
 
 **Usage pattern:** when the owner asks for a second opinion from a peer agent, the current agent writes the checkpoint and updates the `Last checkpoint` column of its row in `active_sessions.md`. The owner opens the peer agent in another window; the peer agent boots per `§P5`, sees the fresh checkpoint referenced in `active_sessions.md`, reads it, and responds with contrarian input. No copy-paste required.

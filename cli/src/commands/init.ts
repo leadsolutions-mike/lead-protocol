@@ -1,84 +1,15 @@
-import { existsSync, readFileSync, writeFileSync, cpSync } from "node:fs";
+import { lstatSync } from "node:fs";
 import path from "node:path";
 import { Command } from "commander";
 import { confirm } from "@inquirer/prompts";
 import { getTemplatesDir } from "../lib/project.js";
-import { writeGuidelines } from "../lib/guideline-writer.js";
 import { preflightIndex, installIndex } from "../lib/index-seed.js";
+import { ensureGitignoreEntries, generateGuidelines, preflightScaffold } from "../lib/scaffold.js";
+import { planUpdate, applyUpdate } from "../lib/updater.js";
 import * as ui from "../lib/ui.js";
 
-const GITIGNORE_PROTOCOL_ENTRIES = [
-  ".agents/local/",
-  "__pycache__/",
-  ".pytest_cache/",
-  "*.pyc",
-];
-
 function isLeadProtocolInstalled(targetDir: string): boolean {
-  return existsSync(path.join(targetDir, ".agents", "CORE_RULES.md"));
-}
-
-function copyAgentsDir(templatesDir: string, targetDir: string): void {
-  const src = path.join(templatesDir, ".agents");
-  const dest = path.join(targetDir, ".agents");
-  cpSync(src, dest, { recursive: true });
-}
-
-function ensureGitignoreEntries(targetDir: string): void {
-  const gitignorePath = path.join(targetDir, ".gitignore");
-
-  if (!existsSync(gitignorePath)) {
-    const content = `# Lead Protocol\n${GITIGNORE_PROTOCOL_ENTRIES.join("\n")}\n`;
-    writeFileSync(gitignorePath, content, "utf-8");
-    return;
-  }
-
-  const existing = readFileSync(gitignorePath, "utf-8");
-  const existingLines = new Set(
-    existing.split("\n").map((l) => l.trim()).filter(Boolean),
-  );
-
-  const missing = GITIGNORE_PROTOCOL_ENTRIES.filter(
-    (entry) => !existingLines.has(entry),
-  );
-
-  if (missing.length === 0) return;
-
-  const suffix = existing.endsWith("\n") ? "" : "\n";
-  const block = `\n# Lead Protocol\n${missing.join("\n")}\n`;
-  writeFileSync(gitignorePath, existing + suffix + block, "utf-8");
-}
-
-function generateGuidelines(templatesDir: string, targetDir: string): void {
-  const claudeContent = readFileSync(
-    path.join(templatesDir, "CLAUDE.md"),
-    "utf-8",
-  );
-  const agentsContent = readFileSync(
-    path.join(templatesDir, "AGENTS.md"),
-    "utf-8",
-  );
-
-  const claudeResult = writeGuidelines(
-    path.join(targetDir, "CLAUDE.md"),
-    claudeContent,
-  );
-  const agentsResult = writeGuidelines(
-    path.join(targetDir, "AGENTS.md"),
-    agentsContent,
-  );
-
-  if (claudeResult === "replaced") {
-    ui.info("CLAUDE.md updated (existing <lead-protocol> block replaced)");
-  } else {
-    ui.success("CLAUDE.md created");
-  }
-
-  if (agentsResult === "replaced") {
-    ui.info("AGENTS.md updated (existing <lead-protocol> block replaced)");
-  } else {
-    ui.success("AGENTS.md created");
-  }
+  return lstatSync(path.join(targetDir, ".agents"), { throwIfNoEntry: false }) !== undefined;
 }
 
 export function registerInitCommand(program: Command): void {
@@ -86,7 +17,8 @@ export function registerInitCommand(program: Command): void {
     .command("init")
     .description("Initialize Lead Protocol in the current directory")
     .option("-y, --yes", "skip confirmation prompt")
-    .action(async (opts: { yes?: boolean }) => {
+    .option("--force", "explicitly overwrite project seeds; preserve actor local state")
+    .action(async (opts: { yes?: boolean; force?: boolean }) => {
       const targetDir = process.cwd();
       const templatesDir = getTemplatesDir();
 
@@ -94,39 +26,39 @@ export function registerInitCommand(program: Command): void {
       console.log(ui.heading("Lead Protocol — Init"));
       console.log();
 
-      if (isLeadProtocolInstalled(targetDir)) {
-        if (!opts.yes) {
-          const proceed = await confirm({
-            message:
-              "Lead Protocol is already installed in this directory. Overwrite protocol files?",
-            default: false,
-          });
-          if (!proceed) {
-            ui.info("Aborted.");
-            console.log();
-            return;
-          }
-        }
-      } else if (!opts.yes) {
+      if (isLeadProtocolInstalled(targetDir) && !opts.force) {
+        ui.error("An .agents entry already exists. Use update to preserve project state, or init --force to overwrite project seeds.");
+        process.exitCode = 1;
+        return;
+      }
+      if (opts.force) {
+        ui.warn(
+          "Force init is an overlay and may overwrite these bundled project files: " +
+          ".agents/PROJECT_RULES.md, .agents/AGENTS_MAP.md, .agents/JOURNAL.md, " +
+          ".agents/LESSONS.md, .agents/decisions.jsonl, " +
+          ".agents/sessions/active_sessions.md, .agents/checkpoints/.gitkeep. " +
+          "Actor local state, custom checkpoints and orphan files are preserved.",
+        );
+      }
+      if (!opts.yes) {
         const proceed = await confirm({
-          message: "Initialize Lead Protocol in this directory?",
-          default: true,
+          message: opts.force ? "Overwrite bundled framework and project seeds?" : "Initialize Lead Protocol in this directory?",
+          default: !opts.force,
         });
-        if (!proceed) {
-          ui.info("Aborted.");
-          console.log();
-          return;
-        }
+        if (!proceed) { ui.info("Aborted."); return; }
       }
 
+      const agentsDir = path.join(targetDir, ".agents");
+      const templateAgentsDir = path.join(templatesDir, ".agents");
+      const plan = planUpdate(templateAgentsDir, agentsDir, true);
+      preflightScaffold(templatesDir, targetDir);
       const indexPlan = preflightIndex(
         path.join(templatesDir, "INDEX.md"),
         path.join(targetDir, "INDEX.md"),
       );
       const indexResult = installIndex(indexPlan);
       ui.success(`INDEX.md ${indexResult}`);
-
-      copyAgentsDir(templatesDir, targetDir);
+      applyUpdate(templateAgentsDir, agentsDir, plan);
       ui.success(".agents/ created");
 
       generateGuidelines(templatesDir, targetDir);

@@ -18,10 +18,16 @@ import pytest
 
 from validate_state import (
     discover_pair_handoffs,
+    find_conflict_markers,
+    find_duplicate_h1,
+    has_final_newline,
+    integrity_errors,
     is_pristine_handoff,
     parse_handoff_md,
+    validate_active_sessions,
     validate_decisions_jsonl,
     validate_handoff,
+    validate_markdown_log,
 )
 
 
@@ -241,6 +247,172 @@ class TestValidateDecisionsJsonl:
 
 
 # --------------------------------------------------------------------------
+# Structural integrity checks (§P3 append-at-tail invariants)
+# --------------------------------------------------------------------------
+
+
+class TestFindConflictMarkers:
+    def test_clean_text_has_no_markers(self) -> None:
+        assert find_conflict_markers("# Title\n\nBody text.\n") == []
+
+    def test_all_four_marker_kinds_detected(self) -> None:
+        text = (
+            "<<<<<<< HEAD\n"
+            "ours\n"
+            "||||||| merged common ancestors\n"
+            "base\n"
+            "=======\n"
+            "theirs\n"
+            ">>>>>>> feature-branch\n"
+        )
+        assert find_conflict_markers(text) == [1, 3, 5, 7]
+
+    def test_marker_must_start_at_column_zero(self) -> None:
+        assert find_conflict_markers("  <<<<<<< HEAD\n") == []
+
+    def test_shorter_runs_are_not_markers(self) -> None:
+        # Six characters is not a git conflict marker.
+        assert find_conflict_markers("<<<<<<\n======\n>>>>>>\n") == []
+
+    def test_longer_equals_run_is_not_a_marker(self) -> None:
+        # A setext underline longer than seven equals must not trigger.
+        assert find_conflict_markers("========\n") == []
+
+
+class TestHasFinalNewline:
+    def test_empty_file_is_fine(self) -> None:
+        assert has_final_newline("") is True
+
+    def test_trailing_newline_is_fine(self) -> None:
+        assert has_final_newline('{"a":1}\n') is True
+
+    def test_missing_newline_detected(self) -> None:
+        assert has_final_newline('{"a":1}') is False
+
+
+class TestFindDuplicateH1:
+    def test_single_h1_is_fine(self) -> None:
+        assert find_duplicate_h1("# JOURNAL.md\n\n## 2026-07-07 | entry\n") == []
+
+    def test_duplicated_h1_reports_second_occurrence(self) -> None:
+        text = "# JOURNAL.md\n\nbody\n\n# JOURNAL.md\n"
+        assert find_duplicate_h1(text) == [5]
+
+    def test_h1_inside_fenced_block_ignored(self) -> None:
+        text = "# LESSONS.md\n\n```\n# example header inside a fence\n```\n"
+        assert find_duplicate_h1(text) == []
+
+    def test_h2_entries_do_not_count(self) -> None:
+        text = "# JOURNAL.md\n\n## 2026-07-06 | a\n\n## 2026-07-07 | b\n"
+        assert find_duplicate_h1(text) == []
+
+
+class TestValidateMarkdownLog:
+    def test_pristine_template_passes(self, tmp_path: Path) -> None:
+        path = tmp_path / "JOURNAL.md"
+        path.write_text(
+            "# JOURNAL.md (Project biography)\n\nBody.\n", encoding="utf-8"
+        )
+        assert validate_markdown_log(path) == []
+
+    def test_conflict_marker_reported_with_lineno(self, tmp_path: Path) -> None:
+        path = tmp_path / "LESSONS.md"
+        path.write_text(
+            "# LESSONS.md\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> b\n",
+            encoding="utf-8",
+        )
+        errors = validate_markdown_log(path)
+        assert any("conflict marker" in e and ":2:" in e for e in errors)
+
+    def test_missing_final_newline_reported(self, tmp_path: Path) -> None:
+        path = tmp_path / "JOURNAL.md"
+        path.write_text("# JOURNAL.md\n\n## entry", encoding="utf-8")
+        errors = validate_markdown_log(path)
+        assert any("final newline" in e for e in errors)
+
+    def test_duplicated_h1_reported(self, tmp_path: Path) -> None:
+        path = tmp_path / "JOURNAL.md"
+        path.write_text("# JOURNAL.md\n\nbody\n\n# JOURNAL.md\n", encoding="utf-8")
+        errors = validate_markdown_log(path)
+        assert any("duplicated top-level header" in e for e in errors)
+
+
+class TestValidateActiveSessions:
+    def test_clean_registry_passes(self, tmp_path: Path) -> None:
+        path = tmp_path / "active_sessions.md"
+        path.write_text(
+            "# active_sessions.md (sessions currently live)\n\n| a |\n",
+            encoding="utf-8",
+        )
+        assert validate_active_sessions(path) == []
+
+    def test_conflict_marker_reported(self, tmp_path: Path) -> None:
+        path = tmp_path / "active_sessions.md"
+        path.write_text("<<<<<<< HEAD\n| row |\n", encoding="utf-8")
+        errors = validate_active_sessions(path)
+        assert any("conflict marker" in e for e in errors)
+
+    def test_missing_final_newline_is_not_an_error_here(
+        self, tmp_path: Path
+    ) -> None:
+        # active_sessions.md is not append-only (rows are removed on close),
+        # so the final-newline invariant is deliberately not enforced.
+        path = tmp_path / "active_sessions.md"
+        path.write_text("# header\n| row |", encoding="utf-8")
+        assert validate_active_sessions(path) == []
+
+
+class TestDecisionsIntegrity:
+    def test_conflict_markers_short_circuit_schema_pass(
+        self, tmp_path: Path, decisions_entry_schema: dict
+    ) -> None:
+        path = tmp_path / "decisions.jsonl"
+        path.write_text(
+            '<<<<<<< HEAD\n{"not": "validated"}\n=======\n>>>>>>> b\n',
+            encoding="utf-8",
+        )
+        errors = validate_decisions_jsonl(decisions_entry_schema, path)
+        assert errors
+        assert all("conflict marker" in e for e in errors)
+
+    def test_missing_final_newline_reported_alongside_schema_pass(
+        self,
+        tmp_path: Path,
+        decisions_entry_schema: dict,
+        valid_decision_entry: dict,
+    ) -> None:
+        path = tmp_path / "decisions.jsonl"
+        path.write_text(json.dumps(valid_decision_entry), encoding="utf-8")
+        errors = validate_decisions_jsonl(decisions_entry_schema, path)
+        assert len(errors) == 1
+        assert "final newline" in errors[0]
+
+    def test_integrity_errors_helper_composes_all_checks(self) -> None:
+        text = "# H\n\n# H\n<<<<<<< HEAD\nbody"
+        errors = integrity_errors(
+            Path("f.md"), text, check_newline=True, check_h1=True
+        )
+        kinds = "\n".join(errors)
+        assert "conflict marker" in kinds
+        assert "final newline" in kinds
+        assert "duplicated top-level header" in kinds
+
+
+class TestHandoffIntegrity:
+    def test_conflict_marker_beats_pristine_skip(
+        self, tmp_path: Path, handoff_schema: dict
+    ) -> None:
+        # Even a template-looking handoff is corrupted if markers are present.
+        path = tmp_path / "handoff.md"
+        path.write_text(
+            "<<<<<<< HEAD\n> Version: 1.0 | Updated: YYYY-MM-DD\n",
+            encoding="utf-8",
+        )
+        errors = validate_handoff(handoff_schema, path)
+        assert any("conflict marker" in e for e in errors)
+
+
+# --------------------------------------------------------------------------
 # validate_handoff
 # --------------------------------------------------------------------------
 
@@ -348,10 +520,14 @@ class TestPreCommitFileRegex:
     # double-escapes the backslashes because they sit inside a double-quoted
     # scalar, so `\.` in regex is written `\\.` on disk).
     PRE_COMMIT_FILES_REGEX_YAML_LITERAL = (
-        r"^\\.agents/(decisions\\.jsonl|local/[^/]+/[^/]+/handoff\\.md)$"
+        r"^\\.agents/(decisions\\.jsonl|JOURNAL\\.md|LESSONS\\.md"
+        r"|sessions/active_sessions\\.md|local/[^/]+/[^/]+/handoff\\.md)$"
     )
     # What `re.compile()` sees after the YAML parser un-escapes one layer.
-    PRE_COMMIT_FILES_REGEX = r"^\.agents/(decisions\.jsonl|local/[^/]+/[^/]+/handoff\.md)$"
+    PRE_COMMIT_FILES_REGEX = (
+        r"^\.agents/(decisions\.jsonl|JOURNAL\.md|LESSONS\.md"
+        r"|sessions/active_sessions\.md|local/[^/]+/[^/]+/handoff\.md)$"
+    )
 
     @pytest.fixture
     def regex(self) -> re.Pattern[str]:
@@ -375,6 +551,13 @@ class TestPreCommitFileRegex:
     def test_decisions_jsonl_matches(self, regex: re.Pattern[str]) -> None:
         assert regex.match(".agents/decisions.jsonl")
 
+    def test_append_only_logs_and_sessions_registry_match(
+        self, regex: re.Pattern[str]
+    ) -> None:
+        assert regex.match(".agents/JOURNAL.md")
+        assert regex.match(".agents/LESSONS.md")
+        assert regex.match(".agents/sessions/active_sessions.md")
+
     def test_pair_handoff_matches(self, regex: re.Pattern[str]) -> None:
         assert regex.match(".agents/local/alice@laptop/claude/handoff.md")
         assert regex.match(".agents/local/bob@workstation/codex/handoff.md")
@@ -397,12 +580,86 @@ class TestPreCommitFileRegex:
     def test_sibling_files_do_not_match(self, regex: re.Pattern[str]) -> None:
         # Common near-miss candidates the hook deliberately ignores.
         for path in [
-            ".agents/LESSONS.md",
-            ".agents/JOURNAL.md",
             ".agents/AGENTS_MAP.md",
+            ".agents/PROJECT_RULES.md",
+            ".agents/sessions/other.md",
             ".agents/local/alice@laptop/claude/activity.log",
             ".agents/local/alice@laptop/claude/lessons.md",
             ".agents/local/alice@laptop/claude/tasks/TASK.md",
             "decisions.jsonl",  # outside .agents/
         ]:
             assert regex.match(path) is None, f"unexpected match: {path}"
+
+# Shared acceptance cases exercise the actual file validators in both runtimes.
+INTEGRITY_CASES = json.loads(
+    (Path(__file__).parent / 'fixtures' / 'integrity-cases.json').read_text()
+)
+
+
+@pytest.mark.parametrize('newline', ['\n', '\r\n'], ids=['LF', 'CRLF'])
+@pytest.mark.parametrize('case', INTEGRITY_CASES, ids=lambda case: case['name'])
+def test_successor_markdown_parity(tmp_path, case, newline):
+    file = tmp_path / 'LESSONS.md'
+    file.write_bytes(case['text'].replace('\n', newline).encode())
+    errors = validate_markdown_log(file)
+    import re
+    for label, expected in [('conflict marker', case['markers']),
+                            ('duplicated top-level header', case['h1'])]:
+        actual = [int(re.search(r':(\d+):', e)[1]) for e in errors if label in e]
+        assert actual == expected, errors
+    assert len(errors) == len(case['markers']) + len(case['h1'])
+
+
+@pytest.mark.parametrize('newline', ['\n', '\r\n'], ids=['LF', 'CRLF'])
+@pytest.mark.parametrize('filename', ['handoff.md', 'active_sessions.md'])
+@pytest.mark.parametrize('fence', ['```', '~~~'], ids=['backticks', 'tildes'])
+@pytest.mark.parametrize('real_markers', [False, True], ids=['example', 'real-conflict'])
+def test_successor_state_fence_parity(
+    tmp_path, handoff_schema, valid_handoff_md, filename, fence, newline, real_markers
+):
+    prefix = valid_handoff_md if filename == 'handoff.md' else '# Active sessions\n'
+    markers = '<<<<<<< HEAD\n||||||| base\n=======\n>>>>>>> incoming\n'
+    text = prefix + f'{fence}diff\n{markers}{fence}\n'
+    expected = []
+    if real_markers:
+        start = len(text.splitlines()) + 1
+        expected = list(range(start, start + 4))
+        text += markers
+    file = tmp_path / filename
+    file.write_bytes(text.replace('\n', newline).encode())
+    errors = (validate_handoff(handoff_schema, file) if filename == 'handoff.md'
+              else validate_active_sessions(file))
+    assert errors == [
+        f'{file}:{line}: unresolved merge conflict marker '
+        '(resolve the merge before appending new entries)' for line in expected
+    ]
+
+
+@pytest.mark.parametrize('text,label', [
+    ('```\n<<<<<<< HEAD\n```\n', 'conflict marker'),
+    ('```\nnot json\n```\n', 'invalid JSON'),
+    ('{}{}\n', 'invalid JSON'),
+])
+def test_successor_jsonl_never_skips_fences(tmp_path, decisions_entry_schema, text, label):
+    file = tmp_path / 'decisions.jsonl'
+    file.write_text(text)
+    assert any(label in e for e in validate_decisions_jsonl(decisions_entry_schema, file))
+
+
+def test_successor_without_git(tmp_path, schemas_dir):
+    import os
+    import shutil
+    import subprocess
+    import sys
+    agents = tmp_path / '.agents'
+    shutil.copytree(schemas_dir, agents / 'schemas')
+    file = agents / 'JOURNAL.md'
+    env = {**os.environ, 'PATH': str(tmp_path / 'no-executables')}
+    assert shutil.which('git', path=env['PATH']) is None
+    assert not (tmp_path / '.git').exists()
+    for content, expected in [('# Journal\n```\n<<<<<<< HEAD\n```\n', 0),
+                              ('# Journal\n<<<<<<< HEAD\n', 1)]:
+        file.write_text(content)
+        result = subprocess.run([sys.executable, str(Path(__file__).with_name('validate_state.py').resolve())],
+                                cwd=tmp_path, env=env, capture_output=True, text=True)
+        assert result.returncode == expected, result.stdout + result.stderr

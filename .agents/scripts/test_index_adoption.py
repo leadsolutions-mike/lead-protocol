@@ -50,7 +50,7 @@ def test_manual_refuses_unsupported_types(tmp_path, side, kind):
 def test_unreleased_docs_and_ci_track_seed():
     readme = (ROOT / 'README.md').read_text()
     assert 'Knowledge map (unreleased)' in readme
-    assert 'v2.1.5 does not contain INDEX.md' in readme
+    assert 'v2.3.0 does not contain INDEX.md' in readme
     cli = (ROOT / 'cli/README.md').read_text()
     assert 'exclusive creation' in cli and 'preflight' in cli
     assert (ROOT / '.github/workflows/cli-lifecycle.yml').read_text().count("- 'INDEX.md'") == 2

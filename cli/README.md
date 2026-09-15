@@ -102,26 +102,63 @@ lead-protocol init --yes  # Skip confirmation
 ```
 
 What it does:
-- **Unreleased:** preflight checks the required readable regular `INDEX.md` seed and destination before any init write; exclusive creation seeds a missing map and preserves existing regular maps byte-for-byte, including empty/CRLF maps and repeat init
-- Copies `.agents/` with all protocol files (rules, schemas, scripts, modules)
+- **Unreleased:** creates a missing `INDEX.md` from the bundled seed and preserves existing regular maps byte-for-byte, including empty/CRLF maps and force init
+- Installs `.agents/` framework and project seeds (actor-local state is never seeded or written)
 - Creates `CLAUDE.md` and `AGENTS.md` with `<lead-protocol>` tagged boot procedures
 - Creates `.gitignore` with the protocol entries if none exists, or appends any missing ones if it already exists
 
-If Lead Protocol is already installed, you'll be asked before overwriting.
-Cancellation writes nothing. INDEX symlinks (live or dangling), directories and
-other unsupported types are refused. A racing regular map is preserved; a
-racing unsupported entry is refused. This does not make the whole init atomic
-or protect against arbitrary concurrent replacement.
+Any existing `.agents` entry blocks init, including partial or malformed installations;
+`--yes` only skips the confirmation prompt. Use `update` to preserve project state.
+Explicit `init --force` overlays bundled framework and project seeds, preserving
+`.agents/local/` and files absent from the bundle. It does not delete orphan files.
+Use force only when deliberately resetting project seeds.
+
+INDEX source/destination preflight runs before writes; exclusive creation seeds
+a missing map. Cancellation writes nothing. INDEX symlinks (live or dangling), directories and
+other unsupported types are refused before writes. A racing regular map is
+preserved; a racing unsupported entry is refused. This does not make the whole
+operation atomic or protect against arbitrary concurrent replacement.
 
 Both managed pointers route project questions to relevant INDEX entries, then
 canonical sources; legacy missing maps fall back to §J6 and kernel §P-Access.
-The existing guideline writer still normalizes repeated blank lines globally;
-this feature does not change that behavior. Other protocol files retain current
-repeat-init behavior.
+Knowledge-map delivery is unreleased; published v2.3.0 lacks the seed. See the
+[root source-adoption instructions](../README.md#knowledge-map-unreleased).
 
-Knowledge-map delivery is unreleased; published v2.1.5 lacks the seed. See the
-[root source-adoption instructions](../README.md#knowledge-map-unreleased) for
-safe manual adoption and the distinction from release-pinned commands.
+### `update`
+
+```bash
+lead-protocol update --dry-run  # Inspect without writes
+lead-protocol update            # Confirm before applying
+lead-protocol update --yes      # Apply without prompting
+```
+
+Updates the nearest installation to the framework bundled with this CLI:
+`CORE_RULES.md`, `PROTOCOL_RULES.md`, `manifest.json`, `modules/`, `schemas/`,
+and `scripts/`. Existing project state (including checkpoints, sessions and the
+agent map) stays byte-identical; missing project seeds are created.
+**Unreleased:** a missing root `INDEX.md` is also seeded;
+existing regular maps remain byte-identical. Actor-local
+state is never scanned, seeded or written. Framework orphans are reported and
+never deleted. Partial pre-manifest installs can be repaired by update.
+
+Both init and update refresh the first complete `<lead-protocol>` block in
+`CLAUDE.md` / `AGENTS.md`, preserving every byte outside it; when no complete
+block exists they append one without trimming user content. Missing protocol
+`.gitignore` entries are appended. Repeated updates skip identical files.
+Dry-run preflights these paths too and writes nothing; its per-file listing
+covers `.agents`, with INDEX seeding, guideline blocks and `.gitignore` handled on apply.
+
+All planned source/destination paths and existing ancestors are checked before
+writes. Symbolic links on these paths, malformed file/directory types, and links
+inside framework directories are refused without replacement or deletion.
+A malformed nearest `.agents` entry fails instead of selecting a parent install.
+Links inside actor-local state are left alone. This is static path validation,
+not protection against concurrent filesystem replacement or hard-link aliases.
+Multi-file writes are not transactional: permission changes, disk exhaustion or
+other I/O failures during application can leave a partial update.
+
+Based on Leonardo Buares's [PR #26](https://github.com/mmilanez/lead-protocol/pull/26),
+with current-main integration and safety fixes for issues #25 and #40.
 
 ### `handoff`
 
@@ -136,32 +173,46 @@ lead-protocol handoff --json               # JSON output
 
 ### `validate`
 
-Validate protocol state files against their JSON schemas.
+Validate protocol state files: JSON-schema validation for `decisions.jsonl` and `handoff.md`, plus structural integrity checks on every state file (unresolved merge conflict markers outside valid Markdown fences; missing final newline on the append-only files; duplicated top-level header on the markdown logs).
 
 ```bash
 lead-protocol validate                         # Auto-discover all
 lead-protocol validate .agents/decisions.jsonl  # Specific file (decisions.jsonl)
 lead-protocol validate path/to/handoff.md        # Specific file (handoff.md)
+lead-protocol validate .agents/JOURNAL.md        # Specific file (append-only log)
 ```
 
-Recognized files are matched by name: `decisions.jsonl` and `handoff.md`. Auto-discover checks `.agents/decisions.jsonl` plus every pair's `handoff.md`.
+Validation works in a plain local directory with no Git executable. JSONL is never treated as fenced Markdown.
+
+Recognized files are matched by name: `decisions.jsonl`, `handoff.md`, `JOURNAL.md`, `LESSONS.md`, and `active_sessions.md`. Auto-discover checks `.agents/decisions.jsonl`, `.agents/JOURNAL.md`, `.agents/LESSONS.md`, `.agents/sessions/active_sessions.md`, plus every pair's `handoff.md`.
 
 Exit codes: `0` = passed, `1` = validation errors, `2` = config errors.
 
 ### `status`
 
-One-screen summary of the current protocol state. Product identity comes from
-`.agents/manifest.json`; kernel identity is reported separately from
-`PROTOCOL_RULES.md`. Legacy installations without a manifest report product
-version `unknown` and never treat the `CORE_RULES.md` document revision as the
-protocol version.
+One-screen summary of the current protocol state. The first non-empty line
+leads with the installed scaffold's product version from `.agents/manifest.json`
+and the project name. The kernel follows immediately as a secondary detail,
+including when color is disabled:
+
+```text
+Lead Protocol <productVersion> — <projectName>
+  Kernel: <kernelVersion> (technical detail)
+```
+
+The running CLI binary's version is never substituted for the scaffold's
+product version. A missing or invalid manifest leaves the product as literal
+`unknown`. The kernel comes from a valid `PROTOCOL_RULES.md` version header,
+falling back to a valid manifest's `kernel_version`, then `unknown`. The
+`CORE_RULES.md` document revision is never used for either identity.
 
 ```bash
 lead-protocol status         # Formatted output
 lead-protocol status --json  # JSON output
 ```
 
-JSON output exposes `productVersion` and `kernelVersion` as separate fields.
+JSON output is unchanged and exposes `productVersion` and `kernelVersion` as
+separate fields.
 For compatibility with existing v2.1.x consumers, `protocolVersion` remains as
 a deprecated alias of `kernelVersion`; it never reads the `CORE_RULES.md`
 document revision.
@@ -191,3 +242,17 @@ The CLI manages `CLAUDE.md` and `AGENTS.md` using XML-style tags:
 
 Apache-2.0
 
+
+### Execution evidence on checkpoints and closeouts
+
+Use `checkpoint --title verified --file checkpoint.md --evidence evidence.json` or add
+`--evidence evidence.json` to `session close` with its existing required close flags. The input is the
+portable evidence object, without an outer key. See the shipped `.agents/PROTOCOL_RULES.md` execution-evidence
+section and `.agents/schemas/execution-evidence.schema.json` for fields and illustrative examples.
+
+The CLI validates supplied evidence before writes, appends one canonical JSON checkpoint section, or adds
+`execution_evidence` to the close receipt. Evidence-bearing closes reference their receipt and latest checkpoint
+in the existing handoff context. Publish a shared close checkpoint with durable evidence for cross-machine
+handoffs. Browser evidence is optional; unperformed checks require a reason and never imply success.
+Omission preserves legacy behavior. Empty/omitted evidence and successful state validation do not prove task
+completion or test execution. `validate` retains its handoff/decisions scope; it does not scan evidence artifacts.

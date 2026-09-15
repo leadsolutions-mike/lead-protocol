@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leadprotocol.dev/schemas/execution-evidence.schema.json",
+  "title": "Execution evidence v1.0.0",
+  "description": "Optional structural record for checkpoints and close receipts; validation does not attest execution or completion.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "branch": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "files_changed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "runtime": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "package_manager": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "cwd": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "ci_run": {
+          "type": "string",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "cwd": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "not_run",
+              "blocked"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "artifact": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "ci_run": {
+            "type": "string",
+            "pattern": "\\S"
+          }
+        },
+        "required": [
+          "command",
+          "result"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "result": {
+                  "enum": [
+                    "not_run",
+                    "blocked"
+                  ]
+                }
+              },
+              "required": [
+                "result"
+              ]
+            },
+            "then": {
+              "required": [
+                "reason"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "browser_validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "performed": {
+          "type": "boolean"
+        },
+        "flow": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "result": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed",
+            "not_run",
+            "blocked"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "evidence": {
+          "type": "string",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "performed",
+        "result"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "result": {
+                "enum": [
+                  "not_run",
+                  "blocked"
+                ]
+              }
+            },
+            "required": [
+              "result"
+            ]
+          },
+          "then": {
+            "required": [
+              "reason"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "performed": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "result": {
+                "enum": [
+                  "not_run",
+                  "blocked"
+                ]
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "result": {
+                "enum": [
+                  "passed",
+                  "failed"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "\\S"
+      }
+    }
+  }
+}

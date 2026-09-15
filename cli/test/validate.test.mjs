@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, readFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -158,4 +158,94 @@ ${checklist}`);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+// Shared acceptance cases with Python, through the real CLI in a plain directory.
+const integrityCases = JSON.parse(readFileSync(path.resolve(testDir,
+  '../../.agents/scripts/fixtures/integrity-cases.json'), 'utf8'));
+function integrityFixture(t) {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'lp-integrity-'));
+  mkdirSync(path.join(root, '.agents', 'schemas'), { recursive: true });
+  cpSync(schemasDir, path.join(root, '.agents', 'schemas'), { recursive: true });
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  return root;
+}
+function integrityRun(root) {
+  return spawnSync(process.execPath, [process.env.LEAD_PROTOCOL_TEST_BIN || bin, 'validate'], {
+    cwd: root, encoding: 'utf8', env: { ...process.env, PATH: path.join(root, 'no-executables') },
+  });
+}
+for (const c of integrityCases) {
+  for (const [name, newline] of [['LF', '\n'], ['CRLF', '\r\n']]) {
+    test(`successor markdown parity: ${c.name} (${name})`, (t) => {
+      const root = integrityFixture(t);
+      writeFileSync(path.join(root, '.agents', 'LESSONS.md'), c.text.replaceAll('\n', newline));
+      const r = integrityRun(root);
+      const output = r.stdout + r.stderr;
+      assert.equal(r.status, c.markers.length + c.h1.length ? 1 : 0, output);
+      for (const [label, expected] of [['unresolved merge conflict marker', c.markers],
+        ['duplicated top-level header', c.h1]]) {
+        const actual = [...output.matchAll(new RegExp(`line (\\d+): ${label}`, 'g'))].map(m => Number(m[1]));
+        assert.deepEqual(actual, expected, output);
+      }
+    });
+  }
+}
+for (const filename of ['handoff.md', 'active_sessions.md']) {
+  for (const fence of ['```', '~~~']) {
+    for (const [name, newline] of [['LF', '\n'], ['CRLF', '\r\n']]) {
+      for (const realMarkers of [false, true]) {
+        test(`successor state fence parity: ${filename} ${fence} ${name} real=${realMarkers}`, (t) => {
+          const root = integrityFixture(t);
+          const directory = path.join(root, '.agents',
+            filename === 'handoff.md' ? 'local/mike/codex' : 'sessions');
+          mkdirSync(directory, { recursive: true });
+          const prefix = filename === 'handoff.md' ? `# handoff.md
+> Version: 2.0 | Updated: 2026-09-13
+**Last Agent:** [Mike / Codex]
+**Timestamp:** 2026-09-13 20:15
+**Status:** STABLE
+**Last Action:** Added conflict-marker examples.
+**Pending Step:** None
+**Blockers/Context:** None
+**Open Threads:** None
+${checklist}` : '# Active sessions\n';
+          const markers = '<<<<<<< HEAD\n||||||| base\n=======\n>>>>>>> incoming\n';
+          let text = prefix + `${fence}diff\n${markers}${fence}\n`;
+          const expected = [];
+          if (realMarkers) {
+            const start = text.split('\n').length;
+            expected.push(start, start + 1, start + 2, start + 3);
+            text += markers;
+          }
+          writeFileSync(path.join(directory, filename), text.replaceAll('\n', newline));
+          const r = integrityRun(root);
+          const output = r.stdout + r.stderr;
+          assert.equal(r.status, realMarkers ? 1 : 0, output);
+          assert.doesNotMatch(output, /pristine template/);
+          const actual = [...output.matchAll(/line (\d+): unresolved merge conflict marker/g)]
+            .map(m => Number(m[1]));
+          assert.deepEqual(actual, expected, output);
+        });
+      }
+    }
+  }
+}
+for (const [text, label] of [['```\n<<<<<<< HEAD\n```\n', 'conflict marker'],
+  ['```\nnot json\n```\n', 'invalid JSON'], ['{}{}\n', 'invalid JSON']]) {
+  test(`successor JSONL does not skip fences: ${JSON.stringify(text)}`, (t) => {
+    const root = integrityFixture(t);
+    writeFileSync(path.join(root, '.agents', 'decisions.jsonl'), text);
+    const r = integrityRun(root);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.ok((r.stdout + r.stderr).includes(label), r.stdout + r.stderr);
+  });
+}
+test('successor generic validation works without Git executable or repository', (t) => {
+  const root = integrityFixture(t);
+  assert.equal(existsSync(path.join(root, '.git')), false);
+  assert.equal(spawnSync('git', ['--version'], {env: {PATH: path.join(root, 'no-executables')}}).error?.code, 'ENOENT');
+  writeFileSync(path.join(root, '.agents', 'JOURNAL.md'), '# Journal\n');
+  const r = integrityRun(root);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
 });

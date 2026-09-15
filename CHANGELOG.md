@@ -18,10 +18,45 @@ re-stated here.
 - Project-owned root `INDEX.md` navigation, on-demand canonical-source discovery
   with independent bounded history-search examples, and same-session pointer
   maintenance (#18). Kernel 2.1.1, CORE 1.6.0, PROJECT_RULES 2.1.0; the persisted
-  handoff checklist remains eight items. Product/package version remains 2.1.5
+  handoff checklist remains eight items. Product/package version remains 2.3.0
   pending maintainer release selection.
 - Create-only INDEX seeding with source/destination preflight, exclusive creation,
   exact packaged-seed verification, and safe source-adoption instructions.
+
+## [2.3.0] — 2026-09-14
+
+Kernel 2.1.1; git-substrate module 1.4.0.
+
+### Added
+
+- Optional execution evidence for checkpoints and session-close receipts, with portable schema validation, explicit execution statuses, legacy omission support, and LF/CRLF preservation (PR #51).
+- Installed product version becomes the primary status heading; kernel information remains secondary and the JSON contract stays compatible (PR #53).
+- Optional Git guidance separates branch ownership from working-directory isolation, preserves serial handoffs, and documents safe cleanup and shared-resource limits (PR #54).
+- Append-only integrity validation catches unresolved conflict markers, missing final newlines, and duplicate log headers. Optional Git union attributes cover JOURNAL, LESSONS, and decisions; mutable sessions remain excluded (PR #56, successor to PR #27).
+- Union merging remains line-based: identical records may deduplicate and matching Markdown headings may lose entry boundaries. It provides no locking, atomic-entry, or lossless-merge guarantee.
+
+### Compatibility and credits
+
+- State-preserving updates, safe initialization, and installed updater regression coverage from PR #50 remain included.
+- Contributions by @leadsolutions-mike (Mike); PR #56 builds on Leonardo Buares's PR #27.
+
+## [2.2.0] — 2026-09-13
+
+Adds state-preserving CLI updates and safer initialization. Kernel remains 2.0.2.
+
+### Added
+
+- Layer-aware CLI `update` with manifest refresh, missing project seeds, preserved
+  project/actor state, orphan reporting and a no-write dry-run (PR #26; #25).
+  Based on Leonardo Buares's contribution, integrated and hardened by @leadsolutions-mike (PR #50).
+
+### Fixed
+
+- Refuse existing, partial or malformed installs in `init` unless `--force` is
+  explicit; force preserves actor-local state, including example-seed collisions (#40).
+- Preflight init/update path hazards before writes and refuse symbolic links
+  without removing them. Preserve guideline bytes outside managed tags and avoid
+  rewriting identical content.
 
 ## [2.1.5] — 2026-09-12
 
