@@ -40,8 +40,8 @@ def test_maintenance_is_in_quality_and_close_without_schema_growth():
     assert 'section/anchor' in kernel
 
 
-def test_unreleased_kernel_description_matches_manifest():
+def test_release_kernel_description_matches_manifest():
     import json
     manifest = json.loads((ROOT / '.agents/manifest.json').read_text(encoding="utf-8"))
-    unreleased = (ROOT / 'CHANGELOG.md').read_text(encoding="utf-8").split('## [Unreleased]', 1)[1].split('\n## [', 1)[0]
-    assert f"Kernel {manifest['kernel_version']}" in unreleased
+    release = (ROOT / 'CHANGELOG.md').read_text(encoding="utf-8").split(f"## [{manifest['product_version']}]", 1)[1].split('\n## [', 1)[0]
+    assert f"Kernel {manifest['kernel_version']}" in release

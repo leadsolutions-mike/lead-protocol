@@ -1,6 +1,6 @@
 # PROTOCOL_RULES.md — Lead Protocol framework rules (generic)
 
-> Version: 2.1.1 | Updated: 2026-09-14
+> Version: 2.2.0 | Updated: 2026-09-15
 > Scope: Substrate-agnostic kernel. Opt-in modules live in `modules/` and are activated via `PROJECT_RULES.md §J8`.
 > This file contains no project-specific content — that lives in `PROJECT_RULES.md`.
 

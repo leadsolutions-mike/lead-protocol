@@ -47,10 +47,27 @@ def test_manual_refuses_unsupported_types(tmp_path, side, kind):
         assert not dest.exists()
 
 
-def test_unreleased_docs_and_ci_track_seed():
+def test_release_docs_and_ci_track_seed():
     readme = (ROOT / 'README.md').read_text(encoding="utf-8")
-    assert 'Knowledge map (unreleased)' in readme
-    assert 'v2.3.0 does not contain INDEX.md' in readme
+    assert '### Knowledge map\n' in readme
+    assert 'The knowledge map is included in v2.4.0.' in readme
     cli = (ROOT / 'cli/README.md').read_text(encoding="utf-8")
     assert 'exclusive creation' in cli and 'preflight' in cli
     assert (ROOT / '.github/workflows/cli-lifecycle.yml').read_text(encoding="utf-8").count("- 'INDEX.md'") == 2
+
+
+def test_quick_start_uses_sanitized_cli_distribution():
+    import json
+    version = json.loads((ROOT / 'cli/package.json').read_text(encoding='utf-8'))['version']
+    readme = (ROOT / 'README.md').read_text(encoding='utf-8')
+    quick_start = readme.split('## Quick start', 1)[1].split('### Knowledge map', 1)[0]
+    assert quick_start.count(f'npx --yes @leadsolutions/lead-protocol@{version} init') == 2
+    for unsafe_route in ['cp -R ', 'Copy-Item', 'git clone', '--force']:
+        assert unsafe_route not in quick_start
+    manual = readme.split('For manual adoption', 1)[1].split('<!-- index-adoption-python -->', 1)[0]
+    assert 'cli/dist/templates/INDEX.md' in manual
+    assert 'sanitized' in manual
+    assert 'path/to/source/INDEX.md' not in manual
+    archive = readme.split('### Alternative — download the release archive', 1)[1].split('### Checking which version', 1)[0]
+    assert 'cli/dist/index.js' in archive and 'sanitized `cli/dist/templates`' in archive
+    assert 'Extract and copy' not in archive and 'Copy-Item' not in archive

@@ -102,7 +102,7 @@ lead-protocol init --yes  # Skip confirmation
 ```
 
 What it does:
-- **Unreleased:** creates a missing `INDEX.md` from the bundled seed and preserves existing regular maps byte-for-byte, including empty/CRLF maps and force init
+- Creates a missing `INDEX.md` from the bundled seed and preserves existing regular maps byte-for-byte, including empty/CRLF maps and force init
 - Installs `.agents/` framework and project seeds (actor-local state is never seeded or written)
 - Creates `CLAUDE.md` and `AGENTS.md` with `<lead-protocol>` tagged boot procedures
 - Creates `.gitignore` with the protocol entries if none exists, or appends any missing ones if it already exists
@@ -121,8 +121,8 @@ operation atomic or protect against arbitrary concurrent replacement.
 
 Both managed pointers route project questions to relevant INDEX entries, then
 canonical sources; legacy missing maps fall back to §J6 and kernel §P-Access.
-Knowledge-map delivery is unreleased; published v2.3.0 lacks the seed. See the
-[root source-adoption instructions](../README.md#knowledge-map-unreleased).
+Knowledge-map delivery is included in v2.4.0. See the
+[root source-adoption instructions](../README.md#knowledge-map).
 
 ### `update`
 
@@ -136,7 +136,7 @@ Updates the nearest installation to the framework bundled with this CLI:
 `CORE_RULES.md`, `PROTOCOL_RULES.md`, `manifest.json`, `modules/`, `schemas/`,
 and `scripts/`. Existing project state (including checkpoints, sessions and the
 agent map) stays byte-identical; missing project seeds are created.
-**Unreleased:** a missing root `INDEX.md` is also seeded;
+A missing root `INDEX.md` is also seeded;
 existing regular maps remain byte-identical. Actor-local
 state is never scanned, seeded or written. Framework orphans are reported and
 never deleted. Partial pre-manifest installs can be repaired by update.
