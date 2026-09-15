@@ -1,7 +1,7 @@
 // Bundles the Lead Protocol templates into dist/templates/ at build time.
 //
 // The template source of truth lives at the repo root (the parent of this
-// package): .agents/, AGENTS.md and CLAUDE.md. npm cannot publish files that
+// package): .agents/, AGENTS.md, CLAUDE.md and INDEX.md. npm cannot publish files that
 // sit outside the package directory, so this script mirrors them into
 // dist/templates/ (the only folder we ship). Runtime code reads from there
 // via getTemplatesDir() in src/lib/project.ts.
@@ -12,6 +12,7 @@ import { cpSync, rmSync, mkdirSync, existsSync, copyFileSync, readFileSync, read
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateSourceManifest } from "./release-metadata.mjs";
+import { pristineProjectLog, projectLogNames } from "./project-log-seeds.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.resolve(scriptDir, "..");
@@ -19,7 +20,7 @@ const repoRoot = path.resolve(scriptDir, "..", "..");
 const dest = path.resolve(pkgRoot, "dist", "templates");
 
 const agentsSrc = path.join(repoRoot, ".agents");
-const guidelineFiles = ["AGENTS.md", "CLAUDE.md"];
+const rootFiles = ["AGENTS.md", "CLAUDE.md", "INDEX.md"];
 const excludedDirectoryNames = new Set(["local", "__pycache__", ".pytest_cache"]);
 
 function fail(message) {
@@ -30,6 +31,7 @@ function fail(message) {
 function shouldCopyAgentPath(src) {
   const relative = path.relative(agentsSrc, src);
   if (!relative) return true;
+  if (projectLogNames.includes(relative)) return false;
 
   const segments = relative.split(path.sep);
   if (segments.some((segment) => excludedDirectoryNames.has(segment))) return false;
@@ -39,7 +41,7 @@ function shouldCopyAgentPath(src) {
 if (!existsSync(agentsSrc)) {
   fail(`source not found: ${agentsSrc} (expected the template .agents/ at the repo root)`);
 }
-for (const file of guidelineFiles) {
+for (const file of rootFiles) {
   if (!existsSync(path.join(repoRoot, file))) {
     fail(`source not found: ${path.join(repoRoot, file)} (expected the template guideline at the repo root)`);
   }
@@ -49,6 +51,12 @@ const manifestValidation = validateSourceManifest(repoRoot);
 if (manifestValidation.errors.length > 0) {
   fail(`${manifestValidation.errors.join("; ")}. Run npm run sync:manifest after changing release or kernel metadata.`);
 }
+
+// Validate both canonical boundaries before this script mutates the bundle.
+// Histories before these markers violate the source append-only preamble contract.
+const projectLogSeeds = projectLogNames.map(name => [
+  name, pristineProjectLog(name, readFileSync(path.join(agentsSrc, name), "utf8")),
+]);
 
 // Start from a clean mirror so stale files never linger between builds.
 rmSync(dest, { recursive: true, force: true });
@@ -60,6 +68,10 @@ cpSync(agentsSrc, path.join(dest, ".agents"), {
   recursive: true,
   filter: shouldCopyAgentPath,
 });
+
+for (const [name, seed] of projectLogSeeds) {
+  writeFileSync(path.join(dest, ".agents", name), seed, "utf8");
+}
 
 // The repository's registry is live project state, not a distributable default.
 // Preserve the template prose and table shape while removing every active row.
@@ -87,7 +99,7 @@ rmSync(checkpoints, { recursive: true, force: true });
 mkdirSync(checkpoints, { recursive: true });
 writeFileSync(path.join(checkpoints, ".gitkeep"), "", "utf8");
 
-for (const file of guidelineFiles) {
+for (const file of rootFiles) {
   copyFileSync(path.join(repoRoot, file), path.join(dest, file));
 }
 

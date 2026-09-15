@@ -5,6 +5,7 @@ import { confirm } from "@inquirer/prompts";
 import { getTemplatesDir } from "../lib/project.js";
 import { planUpdate, applyUpdate, type UpdatePlan } from "../lib/updater.js";
 import { ensureGitignoreEntries, generateGuidelines, preflightScaffold } from "../lib/scaffold.js";
+import { preflightIndex, installIndex } from "../lib/index-seed.js";
 import * as ui from "../lib/ui.js";
 
 // Stop at the nearest .agents entry, including malformed/dangling entries.
@@ -90,8 +91,11 @@ export function registerUpdateCommand(program: Command, version: string): void {
       const templatesDir = getTemplatesDir();
       const templateAgentsDir = path.join(templatesDir, ".agents");
 
+      const indexSource = path.join(templatesDir, "INDEX.md");
+      const indexDestination = path.join(targetDir, "INDEX.md");
       const plan = planUpdate(templateAgentsDir, agentsDir);
       preflightScaffold(templatesDir, targetDir);
+      preflightIndex(indexSource, indexDestination);
       const pendingWrites = plan.files.filter((f) => f.action !== "unchanged");
 
       ui.info(`Target: ${agentsDir}`);
@@ -122,6 +126,8 @@ export function registerUpdateCommand(program: Command, version: string): void {
       }
 
       preflightScaffold(templatesDir, targetDir);
+      const indexResult = installIndex(preflightIndex(indexSource, indexDestination));
+      ui.success(`INDEX.md ${indexResult}`);
       applyUpdate(templateAgentsDir, agentsDir, plan);
       printPlan(plan);
       console.log();

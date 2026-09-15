@@ -113,45 +113,127 @@ Lead Protocol fills the operational-state slot in the broader agent stack:
 
 ## Quick start
 
-```bash
-# Clone the latest stable release
-# Check https://github.com/mmilanez/lead-protocol/releases for the current version number
-git clone --branch v2.4.0 --depth 1 https://github.com/mmilanez/lead-protocol.git /tmp/lp
+Run the pinned CLI from your project's directory. Node.js 18 or later is needed
+for these installation commands; the installed protocol remains plain files
+that agents read. The CLI is optional tooling, not a background service that
+enforces agent instructions.
 
-# Copy the scaffold into your project
-cp -R /tmp/lp/.agents   your-project/.agents
-cp    /tmp/lp/CLAUDE.md  your-project/CLAUDE.md
-cp    /tmp/lp/AGENTS.md  your-project/AGENTS.md
+```bash
+cd your-project
+npx --yes @leadsolutions/lead-protocol@2.4.0 init
 
 # Set your project's identity
-$EDITOR your-project/.agents/PROJECT_RULES.md
+$EDITOR .agents/PROJECT_RULES.md
 
 # Verify the scaffold state
-cd your-project
-python .agents/scripts/validate_state.py
+npx --yes @leadsolutions/lead-protocol@2.4.0 validate
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
-# Clone the latest stable release
-# Check https://github.com/mmilanez/lead-protocol/releases for the current version number
-git clone --branch v2.4.0 --depth 1 https://github.com/mmilanez/lead-protocol.git $env:TEMP\lp
-
-# Copy the scaffold into your project
-Copy-Item -Recurse $env:TEMP\lp\.agents   your-project\.agents
-Copy-Item           $env:TEMP\lp\CLAUDE.md your-project\CLAUDE.md
-Copy-Item           $env:TEMP\lp\AGENTS.md your-project\AGENTS.md
+Set-Location your-project
+npx --yes @leadsolutions/lead-protocol@2.4.0 init
 
 # Set your project's identity
-code your-project\.agents\PROJECT_RULES.md
+code .agents/PROJECT_RULES.md
 
 # Verify the scaffold state
-Set-Location your-project
-python .agents/scripts/validate_state.py
+npx --yes @leadsolutions/lead-protocol@2.4.0 validate
 ```
 
-That's it. Read the sections below or browse [`.agents/CORE_RULES.md`](.agents/CORE_RULES.md) to understand how agents use the protocol inside your project.
+The CLI installs sanitized project seeds and creates a missing knowledge map
+without overwriting an existing regular map. Existing installations should use
+[update](#updating-an-existing-installation), which preserves project state.
+Read [`.agents/CORE_RULES.md`](.agents/CORE_RULES.md) to understand how agents use
+the installed protocol. Check [Releases](https://github.com/mmilanez/lead-protocol/releases)
+for publication status; release preparation alone does not publish a package.
+
+### Knowledge map
+
+Root [INDEX.md](INDEX.md) is a project-owned topic/question → canonical file →
+section or record locator map. It complements `.agents/PROJECT_RULES.md §J6`;
+consult relevant entries on demand, then read the sources. Missing/stale entries
+are not proof of absence. The independent bounded Python search recipes in
+`.agents/PROTOCOL_RULES.md §P-Access` also work without a map, including for older
+and archived history. Keep affected root/folder pointers current in the same
+session as file/folder or section/anchor changes. Optional folder INDEX files or
+README navigation sections are registered in the root map; substantive README
+content remains valid.
+
+The knowledge map is included in v2.4.0. The CLI creates a missing map and
+preserves an existing regular map, including empty and CRLF files. Use `update`
+for an existing installation; ordinary `init` refuses an existing `.agents` entry.
+
+For source-based installation, build the CLI in a reviewed checkout
+(`npm --prefix cli ci`, then `npm --prefix cli run build`) and invoke its absolute
+`cli/dist/index.js` path with `node` from the intended consumer directory,
+followed by `init` or `update`. The build produces sanitized distribution files
+under `cli/dist/templates`; the source repository's `.agents` directory contains
+operational history and is not a consumer installation source.
+
+For manual adoption of the map after that source build, use the sanitized
+`cli/dist/templates/INDEX.md` seed. Save the following as a scratch
+`index-adopt.py` outside either project and run
+`python index-adopt.py path/to/source/cli/dist/templates/INDEX.md path/to/project/INDEX.md`
+from POSIX or PowerShell. Both parent directories must already exist. Run this
+preflight/create step **before** installing other scaffold files; an invalid map
+must stop adoption. Use the built CLI's `init` or `update` for the remaining
+sanitized scaffold rather than copying source project histories. This example
+validates the required readable regular source and destination before writing,
+preserves existing regular maps byte-for-byte, rejects symlinks (including
+dangling ones) and other unsupported types, and uses exclusive creation. It never
+authorizes overwriting an existing consumer map.
+
+<!-- index-adoption-python -->
+```python
+from pathlib import Path
+import stat
+import sys
+
+
+def regular_or_missing(path):
+    try:
+        mode = path.lstat().st_mode
+    except FileNotFoundError:
+        return False
+    if not stat.S_ISREG(mode):
+        raise ValueError(f"INDEX.md must be a regular file: {path}")
+    return True
+
+
+def adopt_index(source, destination):
+    source, destination = Path(source), Path(destination)
+    if not regular_or_missing(source):
+        raise FileNotFoundError(f"Required INDEX.md seed missing: {source}")
+    seed = source.read_bytes()
+    regular_or_missing(destination)
+    try:
+        with destination.open("xb") as output:
+            output.write(seed)
+    except FileExistsError:
+        if not regular_or_missing(destination):
+            raise RuntimeError("INDEX.md changed during exclusive creation")
+        return "preserved"
+    return "created"
+
+
+if __name__ == "__main__":
+    print("INDEX.md " + adopt_index(sys.argv[1], sys.argv[2]))
+```
+
+A regular entry racing with exclusive creation is preserved; an unsupported
+entry is refused. Neither this example nor CLI init promises whole-install
+rollback or protection against arbitrary concurrent filesystem replacement.
+Do not copy this repository's populated operational history into a consumer;
+the CLI build sanitizes sessions, decisions, checkpoints, JOURNAL and LESSONS.
+The two history seeds retain their canonical preamble through the explicit
+empty-state marker, excluding appended source entries. Missing or ambiguous
+markers fail the build; source history remains unchanged. This assumes the
+canonical append-only preamble and does not sanitize arbitrary content inserted
+before the marker. Existing consumer histories remain untouched by update. Keep shared map
+rows generic or project-appropriate, excluding actor-local/private topic rows;
+authorized portable external references follow kernel §P6/§P7.
 
 ### Product and kernel versions
 
@@ -279,9 +361,16 @@ The automated release train currently publishes stable `X.Y.Z` versions only.
 
 ### Alternative — download the release archive
 
-On the [Releases page](https://github.com/mmilanez/lead-protocol/releases), pick a version and download the `Source code (zip)` or `(tar.gz)` asset. Extract and copy the files into your project as shown in Quick start.
-
-For Windows PowerShell, use equivalent `Copy-Item` commands and run the same validator command from the target project root.
+On the [Releases page](https://github.com/mmilanez/lead-protocol/releases), select
+a published version and extract its `Source code (zip)` or `(tar.gz)` archive.
+Build the CLI in that extracted source directory with `npm --prefix cli ci` and
+`npm --prefix cli run build`. From your consumer directory, run `node` with the
+absolute path to the extracted `cli/dist/index.js`, followed by `init` for a new
+installation or `update` for an existing one. This works from POSIX and
+PowerShell and installs the sanitized `cli/dist/templates` distribution.
+Do not copy the archive's source `.agents` directory into a consumer: it holds
+this repository's operational history. For map-only adoption, use the exclusive
+creation example in [Knowledge map](#knowledge-map).
 
 ### Checking which version you have
 
@@ -382,7 +471,7 @@ Patch bumps (Z) never break anything. Minor bumps (Y) may introduce new features
 
 | Version | Highlights |
 |---|---|
-| **2.4.0** | Instruction-only first-run setup gate (`§P10`), before module loading; preserves configured values, clarifies required answers, supports session-only deferral and non-interactive warning/no configuration writes, and exempts framework source. Kernel 2.2.0; meta-repo 1.2.0. |
+| **2.4.0** | Project knowledge map, create-only INDEX installation, Unicode-safe history lookup, pristine project seeds, and instruction-only first-run setup (`§P10`). Kernel 2.2.0; CORE 1.7.0; meta-repo 1.2.0; PROJECT_RULES 2.1.0. |
 | **2.3.0** | Optional execution evidence, primary product status, concurrent worktree guidance, and bounded append-only integrity/union handling. Kernel 2.1.1; git-substrate 1.4.0. |
 | **2.2.0** | Adds state-preserving CLI `update`, refuses accidental reinitialization of existing projects, and validates static path hazards before writes (#50, building on #26; addresses #25 and #40). Kernel remains 2.0.2. |
 | **2.1.5** | Corrects CLI validation of populated handoffs containing placeholder examples (#49), keeps SPDX identifiers consistent, includes the fast-uri lockfile update (#48), and verifies immutable npm publication plus installed consumer behavior. Kernel remains 2.0.2. |

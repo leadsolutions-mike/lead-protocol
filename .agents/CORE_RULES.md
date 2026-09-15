@@ -18,6 +18,8 @@ Read, in order:
 5. `.agents/sessions/active_sessions.md` — concurrent-session awareness
 6. `.agents/local/<actor>/<agent>/handoff.md` — current state of *this* `(actor, agent)` pair
 
+Before answering a project question, consult relevant `INDEX.md` entries on demand, then read canonical sources. If the map is absent, use `PROJECT_RULES.md §J6` and the independent search recipes in `PROTOCOL_RULES.md §P-Access`; absence never blocks legacy boot. Do not load the full map or its targets at boot.
+
 Listing (not reading) of `.agents/checkpoints/` is enough on boot; individual checkpoints load on demand when relevant. `PROTOCOL_RULES.md` itself is consulted on demand — not in the baseline — per `§P-Access`.
 
 After step 2, if `PROJECT_RULES.md` is still pristine (see *First-run setup is a hard boot gate* below), run the `§P10` setup gate before proceeding to step 3.

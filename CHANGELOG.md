@@ -15,16 +15,38 @@ re-stated here.
 
 ## [2.4.0] — 2026-09-15
 
-Kernel 2.2.0; CORE rules 1.7.0; meta-repo module 1.2.0.
+Kernel 2.2.0; CORE 1.7.0; meta-repo 1.2.0; PROJECT_RULES 2.1.0.
 
 ### Added
 
-- Instruction-only first-run setup gate (`PROTOCOL_RULES §P10`), integrated from
-  Leonardo Buares's PR #22 (#21). Runs before module loading, preserves existing
-  configuration, clarifies required answers, and supports session-only deferral,
-  non-interactive warnings without configuration writes, and a source-only sentinel.
-  Ships as an agent instruction contract in product v2.4.0; no new CLI runtime
-  enforcement is introduced.
+- Project-owned root `INDEX.md` maps questions to canonical files and sections.
+  Discovery is on demand, supports bounded historical searches and legacy
+  projects without a map, and requires same-session pointer maintenance (PR #55,
+  issue #18). The persisted handoff checklist remains eight items.
+- Create-only INDEX installation preserves existing regular maps, including
+  empty and CRLF files, with source/destination preflight and exclusive creation.
+- Instruction-only first-run setup (`§P10`) runs before module loading, preserves
+  configured values, clarifies missing required answers, and supports session-only
+  deferral and non-interactive warnings without configuration writes (PR #57,
+  issue #21; successor to PR #22). The source sentinel never ships to consumers.
+
+### Fixed
+
+- New consumers receive pristine JOURNAL and LESSONS seeds while source histories
+  and existing consumer histories remain unchanged. Invalid seed boundaries refuse.
+- Quick-start and source-archive installation use sanitized build output rather
+  than copying source operational history. Existing installations use update.
+- JSONL lookup preserves Unicode separators inside records and later physical-line
+  locators while keeping bounded pagination and complete-entry retrieval.
+- Native Windows CRLF seed content passes the reviewed package gate with exact
+  installed bytes preserved; Python regression fixtures explicitly use UTF-8.
+
+### Compatibility and credits
+
+- The setup gate is an agent instruction contract, not mandatory CLI runtime
+  enforcement. Knowledge maps remain project-owned and optional for legacy boot.
+- Contributions by @leadsolutions-mike (Mike); first-run setup builds on Leonardo
+  Buares's original PR #22. Maintainer corrections retain the original PRs and credit.
 
 ## [2.3.0] — 2026-09-14
 

@@ -102,6 +102,7 @@ lead-protocol init --yes  # Skip confirmation
 ```
 
 What it does:
+- Creates a missing `INDEX.md` from the bundled seed and preserves existing regular maps byte-for-byte, including empty/CRLF maps and force init
 - Installs `.agents/` framework and project seeds (actor-local state is never seeded or written)
 - Creates `CLAUDE.md` and `AGENTS.md` with `<lead-protocol>` tagged boot procedures
 - Creates `.gitignore` with the protocol entries if none exists, or appends any missing ones if it already exists
@@ -111,6 +112,17 @@ Any existing `.agents` entry blocks init, including partial or malformed install
 Explicit `init --force` overlays bundled framework and project seeds, preserving
 `.agents/local/` and files absent from the bundle. It does not delete orphan files.
 Use force only when deliberately resetting project seeds.
+
+INDEX source/destination preflight runs before writes; exclusive creation seeds
+a missing map. Cancellation writes nothing. INDEX symlinks (live or dangling), directories and
+other unsupported types are refused before writes. A racing regular map is
+preserved; a racing unsupported entry is refused. This does not make the whole
+operation atomic or protect against arbitrary concurrent replacement.
+
+Both managed pointers route project questions to relevant INDEX entries, then
+canonical sources; legacy missing maps fall back to §J6 and kernel §P-Access.
+Knowledge-map delivery is included in v2.4.0. See the
+[root source-adoption instructions](../README.md#knowledge-map).
 
 ### `update`
 
@@ -123,7 +135,9 @@ lead-protocol update --yes      # Apply without prompting
 Updates the nearest installation to the framework bundled with this CLI:
 `CORE_RULES.md`, `PROTOCOL_RULES.md`, `manifest.json`, `modules/`, `schemas/`,
 and `scripts/`. Existing project state (including checkpoints, sessions and the
-agent map) stays byte-identical; missing project seeds are created. Actor-local
+agent map) stays byte-identical; missing project seeds are created.
+A missing root `INDEX.md` is also seeded;
+existing regular maps remain byte-identical. Actor-local
 state is never scanned, seeded or written. Framework orphans are reported and
 never deleted. Partial pre-manifest installs can be repaired by update.
 
@@ -132,7 +146,7 @@ Both init and update refresh the first complete `<lead-protocol>` block in
 block exists they append one without trimming user content. Missing protocol
 `.gitignore` entries are appended. Repeated updates skip identical files.
 Dry-run preflights these paths too and writes nothing; its per-file listing
-covers `.agents`, with guideline blocks and `.gitignore` refreshed on apply.
+covers `.agents`, with INDEX seeding, guideline blocks and `.gitignore` handled on apply.
 
 All planned source/destination paths and existing ancestors are checked before
 writes. Symbolic links on these paths, malformed file/directory types, and links

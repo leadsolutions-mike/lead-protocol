@@ -3,6 +3,7 @@ import path from "node:path";
 import { Command } from "commander";
 import { confirm } from "@inquirer/prompts";
 import { getTemplatesDir } from "../lib/project.js";
+import { preflightIndex, installIndex } from "../lib/index-seed.js";
 import { ensureGitignoreEntries, generateGuidelines, preflightScaffold } from "../lib/scaffold.js";
 import { planUpdate, applyUpdate } from "../lib/updater.js";
 import * as ui from "../lib/ui.js";
@@ -51,6 +52,12 @@ export function registerInitCommand(program: Command): void {
       const templateAgentsDir = path.join(templatesDir, ".agents");
       const plan = planUpdate(templateAgentsDir, agentsDir, true);
       preflightScaffold(templatesDir, targetDir);
+      const indexPlan = preflightIndex(
+        path.join(templatesDir, "INDEX.md"),
+        path.join(targetDir, "INDEX.md"),
+      );
+      const indexResult = installIndex(indexPlan);
+      ui.success(`INDEX.md ${indexResult}`);
       applyUpdate(templateAgentsDir, agentsDir, plan);
       ui.success(".agents/ created");
 
