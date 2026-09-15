@@ -1,7 +1,6 @@
 # modules/meta-repo.md — Meta-repo rules (IDE ↔ template lifecycle)
 
-> Version: 1.1.0 | Updated: 2026-04-21 | Protocol: Lead Protocol v2.0.0+
-> Unreleased changes: first-run setup contract; version assignment deferred to release preparation.
+> Version: 1.2.0 | Updated: 2026-09-15 | Protocol: Lead Protocol v2.2.0+
 > Scope: Opt-in module. Activate via `PROJECT_RULES.md §J8 Active modules: meta-repo`.
 > Applies to: **meta-repos** — repositories that develop the Lead Protocol itself and contain both a root `.agents/` directory and a `template/` directory. Consumer repos almost never list this module.
 

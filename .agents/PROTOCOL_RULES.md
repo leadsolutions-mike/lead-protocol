@@ -1,7 +1,6 @@
 # PROTOCOL_RULES.md — Lead Protocol framework rules (generic)
 
-> Version: 2.1.1 | Updated: 2026-09-14
-> Unreleased changes: first-run setup instructions; release metadata remains at the current stable version pending release preparation.
+> Version: 2.2.0 | Updated: 2026-09-15
 > Scope: Substrate-agnostic kernel. Opt-in modules live in `modules/` and are activated via `PROJECT_RULES.md §J8`.
 > This file contains no project-specific content — that lives in `PROJECT_RULES.md`.
 
@@ -643,7 +642,7 @@ Agents read active modules after `PROJECT_RULES.md` and its `§P10` setup gate, 
 - A module may depend on another module only if it declares the dependency in its header.
 - Module CI/tooling (if any) must include a top-of-file comment identifying the module it enforces, so consumer repos that do not list the module know not to copy the tooling.
 
-## §P10 — First-run setup interview *(Unreleased)*
+## §P10 — First-run setup interview *(v2.2.0+)*
 
 Lead Protocol ships `PROJECT_RULES.md` as a pristine template: `[Project Name]`, bracketed `[e.g., ...]` examples, and an unconfigured `§J8`. Whether a project was scaffolded by copying the release files or by the bundled CLI, the template is identical and must be configured before the protocol can operate correctly, because without a real `§J8 Active modules` the agent cannot even finish its baseline boot (step 3 loads the modules named there). Consumers frequently skip this step and let agents run against the raw template. This section makes configuration a hard, self-clearing boot gate.
 
@@ -659,7 +658,7 @@ Detection is purely textual (a `[` inside the field value), as chosen for this i
 
 ### Framework-source carve-out
 
-If a sentinel file named `.lead-protocol-source` exists at the repository root, the gate is disabled. This marks the Lead Protocol framework's own development and distribution source, whose scaffold is pristine by design and must stay that way to ship. The sentinel lives outside `.agents/`. Copy only `.agents/`, `AGENTS.md`, and `CLAUDE.md` into consumers as documented; never copy the sentinel. The npm package and CLI init/update template paths exclude it.
+If a sentinel file named `.lead-protocol-source` exists at the repository root, the gate is disabled. This marks the Lead Protocol framework's own development and distribution source, where `PROJECT_RULES.md` remains unconfigured by design. The sentinel lives outside `.agents/`. Consumers use CLI init/update or the documented preservation-safe copy flow from sanitized consumer templates. A manual copy includes `.agents/`, `AGENTS.md`, and `CLAUDE.md`, plus the optional `INDEX.md` when supplied by those templates; never copy the sentinel or raw source history. The npm package and CLI init/update template paths exclude the sentinel.
 
 ### The gate (interactive environments)
 

@@ -13,13 +13,18 @@ re-stated here.
 
 ## [Unreleased]
 
+## [2.4.0] — 2026-09-15
+
+Kernel 2.2.0; CORE rules 1.7.0; meta-repo module 1.2.0.
+
 ### Added
 
 - Instruction-only first-run setup gate (`PROTOCOL_RULES §P10`), integrated from
   Leonardo Buares's PR #22 (#21). Runs before module loading, preserves existing
   configuration, clarifies required answers, and supports session-only deferral,
   non-interactive warnings without configuration writes, and a source-only sentinel.
-  Release/package/kernel version assignment is deferred to release preparation.
+  Ships as an agent instruction contract in product v2.4.0; no new CLI runtime
+  enforcement is introduced.
 
 ## [2.3.0] — 2026-09-14
 

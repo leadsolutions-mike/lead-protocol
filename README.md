@@ -4,7 +4,7 @@
 
 When one AI coding session ends, it records what it did, what remains, and why it made the calls it made. The next session — in the same tool or a different one, minutes or days later — can read that state and continue from there.
 
-> Current version: **2.3.0**
+> Current version: **2.4.0**
 
 This version identifies the stable release represented by this source. For an
 installation, use a published release and confirm its package is available;
@@ -116,7 +116,7 @@ Lead Protocol fills the operational-state slot in the broader agent stack:
 ```bash
 # Clone the latest stable release
 # Check https://github.com/mmilanez/lead-protocol/releases for the current version number
-git clone --branch v2.3.0 --depth 1 https://github.com/mmilanez/lead-protocol.git /tmp/lp
+git clone --branch v2.4.0 --depth 1 https://github.com/mmilanez/lead-protocol.git /tmp/lp
 
 # Copy the scaffold into your project
 cp -R /tmp/lp/.agents   your-project/.agents
@@ -136,7 +136,7 @@ python .agents/scripts/validate_state.py
 ```powershell
 # Clone the latest stable release
 # Check https://github.com/mmilanez/lead-protocol/releases for the current version number
-git clone --branch v2.3.0 --depth 1 https://github.com/mmilanez/lead-protocol.git $env:TEMP\lp
+git clone --branch v2.4.0 --depth 1 https://github.com/mmilanez/lead-protocol.git $env:TEMP\lp
 
 # Copy the scaffold into your project
 Copy-Item -Recurse $env:TEMP\lp\.agents   your-project\.agents
@@ -185,14 +185,14 @@ and `protocolVersion` remains a deprecated compatibility alias of `kernelVersion
 The optional CLI turns the boot and close contract into three commands:
 
 ```bash
-npx @leadsolutions/lead-protocol@2.3.0 session open \
+npx @leadsolutions/lead-protocol@2.4.0 session open \
   --actor judge --agent codex --topic "Try the lifecycle" --json
 
 echo "A self-contained checkpoint body" | \
-  npx @leadsolutions/lead-protocol@2.3.0 checkpoint \
+  npx @leadsolutions/lead-protocol@2.4.0 checkpoint \
     --actor judge --agent codex --title first-checkpoint --json
 
-npx @leadsolutions/lead-protocol@2.3.0 session close \
+npx @leadsolutions/lead-protocol@2.4.0 session close \
   --actor judge --agent codex \
   --journal not-significant --status stable \
   --last-action "Verified the lifecycle." --pending-step None \
@@ -200,7 +200,7 @@ npx @leadsolutions/lead-protocol@2.3.0 session close \
 
 # Start a clean second session. The JSON receipt includes the terminal handoff
 # from the first session under `previousHandoff`, proving immediate resume.
-npx @leadsolutions/lead-protocol@2.3.0 session open \
+npx @leadsolutions/lead-protocol@2.4.0 session open \
   --actor judge --agent codex --topic "Resume from prior handoff" --json
 ```
 
@@ -234,7 +234,7 @@ interrupted operations. Codex and the maintainer turned those findings into
 public fixes and regression tests.
 
 That hardening first shipped in `v2.1.2` and remains part of the current
-`v2.3.0` release. `v2.1.1` is immutable and does not contain those fixes. The
+`v2.4.0` release. `v2.1.1` is immutable and does not contain those fixes. The
 model configuration, Codex thread ID, findings, and validation are recorded in
 the [public adversarial review](docs/build-week-2026/gpt-5.6-lifecycle-review.md).
 
@@ -253,8 +253,8 @@ Use the CLI's framework update command to retain project rules, decisions, sessi
 history and actor-local state:
 
 ```bash
-npx --yes @leadsolutions/lead-protocol@2.3.0 update --dry-run
-npx --yes @leadsolutions/lead-protocol@2.3.0 update --yes
+npx --yes @leadsolutions/lead-protocol@2.4.0 update --dry-run
+npx --yes @leadsolutions/lead-protocol@2.4.0 update --yes
 ```
 
 `init` is for new installations. It refuses any existing `.agents` entry unless
@@ -343,7 +343,7 @@ Every compliant agent reads, in order:
 
 1. `.agents/CORE_RULES.md` — index + essential contracts.
 2. `.agents/PROJECT_RULES.md` — your project's identity, language rules, tone, operational preferences. Read `§J8 Active modules` first.
-2a. Apply the first-run setup gate (`§P10`, Unreleased) before loading modules.
+2a. Apply the first-run setup gate (`§P10`) before loading modules.
 3. `.agents/modules/<scope>.md` — for each scope listed in `§J8 Active modules`, in declaration order.
 4. `.agents/AGENTS_MAP.md` — resolve this agent's own `<agent>` slug from its tool signature.
 5. `.agents/sessions/active_sessions.md` — concurrent-session awareness.
@@ -351,7 +351,7 @@ Every compliant agent reads, in order:
 
 `PROTOCOL_RULES.md` itself is read **on demand**, not in the baseline — `CORE_RULES.md` points agents there when needed. This keeps baseline cost bounded. See `PROTOCOL_RULES.md §P-Access` for the full load contract.
 
-**First run (Unreleased source change):** in interactive consumer sessions, if `PROJECT_RULES.md` is still the pristine template, the agent does not silently proceed. It runs a short setup interview, fills in your project identity, and only then handles your request. See `PROTOCOL_RULES.md §P10`. You can configure the file by hand, or reply `later` / `skip` to defer for this session. Non-interactive sessions warn without writing configuration. The source sentinel exempts this framework repository and must not be copied into consumers. This is an agent instruction contract, not new CLI runtime enforcement; the stable v2.3.0 quick-start commands above do not yet deliver this unreleased change.
+**First run (v2.4.0):** in interactive consumer sessions, if `PROJECT_RULES.md` is still the pristine template, the agent does not silently proceed. It runs a short setup interview, fills in your project identity, and only then handles your request. See `PROTOCOL_RULES.md §P10`. You can configure the file by hand, or reply `later` / `skip` to defer for this session. Non-interactive sessions warn without writing configuration. The source sentinel exempts this framework repository and must not be copied into consumers. This is an agent instruction contract shipped in v2.4.0, not new CLI runtime enforcement.
 
 The universal `AGENTS.md` pointer and tool-specific compatibility pointers such as `CLAUDE.md` let agent tools discover `.agents/` without custom configuration.
 
@@ -382,7 +382,7 @@ Patch bumps (Z) never break anything. Minor bumps (Y) may introduce new features
 
 | Version | Highlights |
 |---|---|
-| **Unreleased** | Instruction-only first-run setup gate (`§P10`), before module loading; preserves configured values, clarifies required answers, supports session-only deferral and non-interactive warning/no configuration writes, and exempts framework source. No new release version is assigned. |
+| **2.4.0** | Instruction-only first-run setup gate (`§P10`), before module loading; preserves configured values, clarifies required answers, supports session-only deferral and non-interactive warning/no configuration writes, and exempts framework source. Kernel 2.2.0; meta-repo 1.2.0. |
 | **2.3.0** | Optional execution evidence, primary product status, concurrent worktree guidance, and bounded append-only integrity/union handling. Kernel 2.1.1; git-substrate 1.4.0. |
 | **2.2.0** | Adds state-preserving CLI `update`, refuses accidental reinitialization of existing projects, and validates static path hazards before writes (#50, building on #26; addresses #25 and #40). Kernel remains 2.0.2. |
 | **2.1.5** | Corrects CLI validation of populated handoffs containing placeholder examples (#49), keeps SPDX identifiers consistent, includes the fast-uri lockfile update (#48), and verifies immutable npm publication plus installed consumer behavior. Kernel remains 2.0.2. |

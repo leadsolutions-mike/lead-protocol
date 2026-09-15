@@ -35,11 +35,11 @@ test('setup preserves configured values and clarifies required answers', () => {
   assert.match(text, /unknown or ambiguous required answers.*clarif.*rather than guessed/i);
   assert.match(read(root, '.agents/modules/meta-repo.md'), /Mixed state[^\n]*§P10[^\n]*Name[^\n]*§J8/);
 });
-test('unreleased setup keeps product and kernel release metadata unchanged', () => {
-  assert.equal(JSON.parse(read(root, 'cli/package.json')).version, '2.3.0');
-  assert.equal(JSON.parse(read(root, '.agents/manifest.json')).kernel_version, '2.1.1');
-  assert.match(read(root, 'README.md'), /Current version: \*\*2\.3\.0\*\*/);
-  assert.match(read(root, 'README.md'), /\| \*\*Unreleased\*\* \|.*§P10/);
+test('released setup identifies product 2.4.0 and kernel 2.2.0', () => {
+  assert.equal(JSON.parse(read(root, 'cli/package.json')).version, '2.4.0');
+  assert.equal(JSON.parse(read(root, '.agents/manifest.json')).kernel_version, '2.2.0');
+  assert.match(read(root, 'README.md'), /Current version: \*\*2\.4\.0\*\*/);
+  assert.match(read(root, 'README.md'), /\| \*\*2\.4\.0\*\* \|.*§P10/);
 });
 for (const mode of ['direct copy', 'CLI']) test(`${mode} ships setup without source exemption and preserves configured local state on update`, t => {
   const target = mkdtempSync(path.join(tmpdir(), 'lp-first-run-'));
@@ -48,7 +48,7 @@ for (const mode of ['direct copy', 'CLI']) test(`${mode} ships setup without sou
     const r = spawnSync(process.execPath, [bin, ...args], {cwd:target, encoding:'utf8'});
     assert.equal(r.status, 0, r.stdout + r.stderr);
   };
-  if (mode === 'direct copy') for (const file of ['.agents','AGENTS.md','CLAUDE.md']) cpSync(path.join(root,file),path.join(target,file),{recursive:true});
+  if (mode === 'direct copy') for (const file of ['.agents','AGENTS.md','CLAUDE.md']) cpSync(path.join(templates,file),path.join(target,file),{recursive:true});
   else run('init','--yes');
   pointers(target, mode === 'CLI');
   for (const file of ['.agents/CORE_RULES.md', '.agents/PROTOCOL_RULES.md', '.agents/PROJECT_RULES.md', '.agents/modules/meta-repo.md']) {
