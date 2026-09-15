@@ -32,12 +32,12 @@ retained locally, separately from previous gates. Linux Node22; PowerShell is
 Linux, not a substitute for native Windows.
 
 - `node`: exit0; # tests 63 / # pass 63 / # fail 0 / # skipped 0
-- `typecheck`: exit0; 
+- `typecheck`: exit0;
 - `python`: exit0; 152 passed in 5.55s
 - `pack`: exit0; # tests 23 / # pass 23 / # fail 0 / # skipped 0 / ✔ OK — validated 1 file(s) (1 passed) / [test-pack] PASS: the locally packed artifact installs and runs like production.
-- `metadata`: exit0; 
+- `metadata`: exit0;
 - `state`: exit0; OK — validated 4 file(s)
-- `diff`: exit0; 
+- `diff`: exit0;
 - `powershell`: exit0; 52 passed in 5.33s
 
 Package23 cases comprise17 installed-runtime cases and6 source-helper cases,
