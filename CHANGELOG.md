@@ -23,6 +23,15 @@ re-stated here.
 - Create-only INDEX seeding with source/destination preflight, exclusive creation,
   exact packaged-seed verification, and safe source-adoption instructions.
 
+### Fixed
+
+- Keep source JOURNAL/LESSONS history out of newly installed project seeds while
+  preserving source logs and existing consumer history. Invalid source seed
+  boundaries refuse instead of distributing populated history.
+- Read physical JSONL lines consistently when retrieving knowledge-map evidence,
+  including Unicode line separators inside records and subsequent hit locators.
+- Accept native Windows CRLF seed checkouts in the reviewed-content package gate
+  while retaining exact installed bytes, and use explicit UTF-8 in Python tests.
 ## [2.3.0] — 2026-09-14
 
 Kernel 2.1.1; git-substrate module 1.4.0.

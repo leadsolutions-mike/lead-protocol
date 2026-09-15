@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def adoption_code():
-    text = (ROOT / 'README.md').read_text()
+    text = (ROOT / 'README.md').read_text(encoding="utf-8")
     assert '<!-- index-adoption-python -->' in text
     return text.split('<!-- index-adoption-python -->', 1)[1].split('```python', 1)[1].split('```', 1)[0]
 
@@ -48,9 +48,9 @@ def test_manual_refuses_unsupported_types(tmp_path, side, kind):
 
 
 def test_unreleased_docs_and_ci_track_seed():
-    readme = (ROOT / 'README.md').read_text()
+    readme = (ROOT / 'README.md').read_text(encoding="utf-8")
     assert 'Knowledge map (unreleased)' in readme
     assert 'v2.3.0 does not contain INDEX.md' in readme
-    cli = (ROOT / 'cli/README.md').read_text()
+    cli = (ROOT / 'cli/README.md').read_text(encoding="utf-8")
     assert 'exclusive creation' in cli and 'preflight' in cli
-    assert (ROOT / '.github/workflows/cli-lifecycle.yml').read_text().count("- 'INDEX.md'") == 2
+    assert (ROOT / '.github/workflows/cli-lifecycle.yml').read_text(encoding="utf-8").count("- 'INDEX.md'") == 2

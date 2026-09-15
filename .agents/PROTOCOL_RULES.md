@@ -557,7 +557,9 @@ def entry_page(path, line, offset=0, limit=2000):
     if offset < 0 or not 1 <= limit <= 8000:
         raise ValueError("Use a nonnegative offset and limit 1..8000")
     path = Path(path)
-    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    # Match search_page physical lines; Unicode separators are record content.
+    with path.open(encoding="utf-8") as source:
+        lines = source.readlines()
     if not 1 <= line <= len(lines):
         raise ValueError("Line is outside the source")
     start, end = line - 1, line

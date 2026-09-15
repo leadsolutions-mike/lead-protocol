@@ -12,6 +12,7 @@ import { cpSync, rmSync, mkdirSync, existsSync, copyFileSync, readFileSync, read
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateSourceManifest } from "./release-metadata.mjs";
+import { pristineProjectLog, projectLogNames } from "./project-log-seeds.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.resolve(scriptDir, "..");
@@ -30,6 +31,7 @@ function fail(message) {
 function shouldCopyAgentPath(src) {
   const relative = path.relative(agentsSrc, src);
   if (!relative) return true;
+  if (projectLogNames.includes(relative)) return false;
 
   const segments = relative.split(path.sep);
   if (segments.some((segment) => excludedDirectoryNames.has(segment))) return false;
@@ -50,6 +52,12 @@ if (manifestValidation.errors.length > 0) {
   fail(`${manifestValidation.errors.join("; ")}. Run npm run sync:manifest after changing release or kernel metadata.`);
 }
 
+// Validate both canonical boundaries before this script mutates the bundle.
+// Histories before these markers violate the source append-only preamble contract.
+const projectLogSeeds = projectLogNames.map(name => [
+  name, pristineProjectLog(name, readFileSync(path.join(agentsSrc, name), "utf8")),
+]);
+
 // Start from a clean mirror so stale files never linger between builds.
 rmSync(dest, { recursive: true, force: true });
 mkdirSync(dest, { recursive: true });
@@ -60,6 +68,10 @@ cpSync(agentsSrc, path.join(dest, ".agents"), {
   recursive: true,
   filter: shouldCopyAgentPath,
 });
+
+for (const [name, seed] of projectLogSeeds) {
+  writeFileSync(path.join(dest, ".agents", name), seed, "utf8");
+}
 
 // The repository's registry is live project state, not a distributable default.
 // Preserve the template prose and table shape while removing every active row.

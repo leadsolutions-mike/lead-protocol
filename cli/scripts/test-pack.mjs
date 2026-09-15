@@ -110,13 +110,17 @@ try {
 
   const shippedTemplates = path.join(installed, "dist", "templates");
   const expectedSeed = readFileSync(path.resolve(pkgRoot, "..", "INDEX.md"));
-  // Reviewed generic seed bytes: changing the distributed map requires review
+  // Reviewed generic seed content: changing the distributed map requires review
   // of the actual rows, not merely retaining a marker or matching a live source.
-  assert.equal(createHash("sha256").update(expectedSeed).digest("hex"),
+  assert.equal(createHash("sha256").update(expectedSeed.toString("utf8").replace(/\r\n/g, "\n")).digest("hex"),
     "6bfeca63ea15daa399d41e29e5fbf4d426e2b2440afbd18f5b4e09e11d8571d5");
   assert.deepEqual(readFileSync(path.join(shippedTemplates, "INDEX.md")), expectedSeed);
   console.log("[test-pack] OK: exact reviewed generic INDEX seed shipped");
 
+  console.log("[test-pack] Running pristine project-history fixtures against the packed runtime");
+  execFileSync(process.execPath, ["--test", path.join(pkgRoot, "test", "project-seeds.test.mjs")], {
+    stdio: "inherit", env: { ...process.env, LEAD_PROTOCOL_TEST_BIN: bin },
+  });
   const excludedCacheArtifacts = listRelativeEntries(shippedTemplates).filter((relative) => {
     const segments = relative.split(path.sep);
     return (

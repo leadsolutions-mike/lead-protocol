@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def recipes():
-    text = (ROOT / '.agents/PROTOCOL_RULES.md').read_text()
+    text = (ROOT / '.agents/PROTOCOL_RULES.md').read_text(encoding="utf-8")
     assert '<!-- knowledge-search-python -->' in text
     code = text.split('<!-- knowledge-search-python -->', 1)[1].split('```python', 1)[1].split('```', 1)[0]
     scope = {}
@@ -19,11 +19,11 @@ def recipes():
 def test_literal_old_archive_many_zero_and_continuation(tmp_path):
     api = recipes()
     old = tmp_path / 'JOURNAL.md'
-    old.write_text('## Old\nneedle[.*] old\n' + 'later unrelated\n' * 100)
+    old.write_text('## Old\nneedle[.*] old\n' + 'later unrelated\n' * 100, encoding="utf-8")
     archive = tmp_path / 'archive'
     archive.mkdir()
     saved = archive / 'JOURNAL-2020.md'
-    saved.write_text('## Archived\n' + 'needle[.*]\n' * 45)
+    saved.write_text('## Archived\n' + 'needle[.*]\n' * 45, encoding="utf-8")
     paths = [old, saved]
     hits = []
     offset = 0
@@ -49,7 +49,7 @@ def test_literal_old_archive_many_zero_and_continuation(tmp_path):
 def test_complete_entry_retrieval_in_bounded_chunks(tmp_path, suffix, content, line, expected):
     api = recipes()
     source = tmp_path / ('history' + suffix)
-    source.write_text(content)
+    source.write_text(content, encoding="utf-8")
     assert api['search_page']([source], 'needle')['hits'][0]['line'] == line
     offset = 0
     chunks = []
@@ -66,7 +66,7 @@ def test_complete_entry_retrieval_in_bounded_chunks(tmp_path, suffix, content, l
 def test_long_hit_preview_is_explicitly_clipped(tmp_path):
     api = recipes()
     source = tmp_path / 'decisions.jsonl'
-    source.write_text('x' * 1000 + '\n')
+    source.write_text('x' * 1000 + '\n', encoding="utf-8")
     hit = api['search_page']([source], 'x')['hits'][0]
     assert len(hit['preview']) <= 200 and hit['clipped']
 
@@ -98,7 +98,7 @@ def test_fenced_headings_preserve_complete_entry(tmp_path, marker, length, inden
                 + 'detail\n' * 500 + closing + 'needle final rationale\n')
     previous = '## Previous\nold\n'
     following = '## Next entry\nnext rationale\n'
-    source.write_text(previous + expected + following)
+    source.write_text(previous + expected + following, encoding="utf-8")
     hits = api['search_page']([source], 'needle')['hits']
     assert len(hits) == 3
     for hit in hits:
@@ -117,7 +117,7 @@ def test_only_valid_fence_closes(tmp_path, marker, false_close):
                'text': marker * 4 + ' trailing', 'indented': '    ' + marker * 4}[false_close]
     expected = ('## Entry\n' + marker * 4 + '\n' + invalid
                 + '\n## needle still fenced\n' + marker * 4 + '\nfinal rationale\n')
-    source.write_text(expected + '## Next\nother\n')
+    source.write_text(expected + '## Next\nother\n', encoding="utf-8")
     assert collect_entry(api, source, 4) == expected
 
 
@@ -125,7 +125,7 @@ def test_only_valid_fence_closes(tmp_path, marker, false_close):
 @pytest.mark.parametrize('line', [1, 3, 4])
 def test_unterminated_fence_refuses_instead_of_signaling_complete(tmp_path, marker, line):
     source = tmp_path / 'history.md'
-    source.write_text('## Entry\n' + marker * 4 + '\n## fenced heading\nfinal rationale\n')
+    source.write_text('## Entry\n' + marker * 4 + '\n## fenced heading\nfinal rationale\n', encoding="utf-8")
     with pytest.raises(ValueError, match='Unterminated fence'):
         recipes()['entry_page'](source, line)
 
@@ -134,7 +134,7 @@ def test_unterminated_fence_refuses_instead_of_signaling_complete(tmp_path, mark
 def test_non_openers_do_not_hide_real_entry_boundary(tmp_path, non_fence):
     source = tmp_path / 'history.md'
     first = '## Entry\n' + non_fence + '\nbody\n'
-    source.write_text(first + '## Next\nnext\n')
+    source.write_text(first + '## Next\nnext\n', encoding="utf-8")
     assert collect_entry(recipes(), source, 1) == first
 
 
@@ -142,6 +142,28 @@ def test_documented_literal_heading_boundary_and_preamble(tmp_path):
     source = tmp_path / 'history.md'
     preamble = 'preamble\n'
     entry = '## Entry\n### Nested\n  ## indented\n##\n##\ttab\ntext\n'
-    source.write_text(preamble + entry + '## Next\nnext\n')
+    source.write_text(preamble + entry + '## Next\nnext\n', encoding="utf-8")
     assert collect_entry(recipes(), source, 1) == preamble
     assert collect_entry(recipes(), source, 3) == entry
+
+
+@pytest.mark.parametrize('separator', ['\u2028', '\u2029', '\u0085'], ids=['line-separator', 'paragraph-separator', 'next-line'])
+@pytest.mark.parametrize('newline', ['\n', '\r\n'], ids=['lf', 'crlf'])
+def test_jsonl_unicode_separators_preserve_physical_records(tmp_path, separator, newline):
+    api = recipes()
+    source = tmp_path / 'decisions.jsonl'
+    records = [
+        json.dumps({'decision': 'prefix' + separator + 'needle suffix'}, ensure_ascii=False),
+        json.dumps({'decision': 'needle subsequent record'}, ensure_ascii=False),
+    ]
+    source.write_bytes((newline.join(records) + newline).encode('utf-8'))
+    first = api['search_page']([source], 'needle', limit=1)
+    assert [hit['line'] for hit in first['hits']] == [1]
+    assert first['next'] == 1
+    second = api['search_page']([source], 'needle', offset=first['next'], limit=1)
+    assert [hit['line'] for hit in second['hits']] == [2]
+    assert second['next'] is None
+    for hit, expected in zip(first['hits'] + second['hits'], records):
+        actual = collect_entry(api, source, hit['line'], limit=7)
+        assert actual == expected + '\n'
+        assert json.loads(actual) == json.loads(expected)

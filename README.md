@@ -227,7 +227,12 @@ A regular entry racing with exclusive creation is preserved; an unsupported
 entry is refused. Neither this example nor CLI init promises whole-install
 rollback or protection against arbitrary concurrent filesystem replacement.
 Do not copy this repository's populated operational history into a consumer;
-the CLI build sanitizes sessions, decisions and checkpoints. Keep shared map
+the CLI build sanitizes sessions, decisions, checkpoints, JOURNAL and LESSONS.
+The two history seeds retain their canonical preamble through the explicit
+empty-state marker, excluding appended source entries. Missing or ambiguous
+markers fail the build; source history remains unchanged. This assumes the
+canonical append-only preamble and does not sanitize arbitrary content inserted
+before the marker. Existing consumer histories remain untouched by update. Keep shared map
 rows generic or project-appropriate, excluding actor-local/private topic rows;
 authorized portable external references follow kernel §P6/§P7.
 
