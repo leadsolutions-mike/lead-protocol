@@ -4,7 +4,7 @@
 
 When one AI coding session ends, it records what it did, what remains, and why it made the calls it made. The next session — in the same tool or a different one, minutes or days later — can read that state and continue from there.
 
-> Current version: **2.2.0**
+> Current version: **2.3.0**
 
 This version identifies the stable release represented by this source. For an
 installation, use a published release and confirm its package is available;
@@ -116,7 +116,7 @@ Lead Protocol fills the operational-state slot in the broader agent stack:
 ```bash
 # Clone the latest stable release
 # Check https://github.com/mmilanez/lead-protocol/releases for the current version number
-git clone --branch v2.2.0 --depth 1 https://github.com/mmilanez/lead-protocol.git /tmp/lp
+git clone --branch v2.3.0 --depth 1 https://github.com/mmilanez/lead-protocol.git /tmp/lp
 
 # Copy the scaffold into your project
 cp -R /tmp/lp/.agents   your-project/.agents
@@ -136,7 +136,7 @@ python .agents/scripts/validate_state.py
 ```powershell
 # Clone the latest stable release
 # Check https://github.com/mmilanez/lead-protocol/releases for the current version number
-git clone --branch v2.2.0 --depth 1 https://github.com/mmilanez/lead-protocol.git $env:TEMP\lp
+git clone --branch v2.3.0 --depth 1 https://github.com/mmilanez/lead-protocol.git $env:TEMP\lp
 
 # Copy the scaffold into your project
 Copy-Item -Recurse $env:TEMP\lp\.agents   your-project\.agents
@@ -158,30 +158,41 @@ That's it. Read the sections below or browse [`.agents/CORE_RULES.md`](.agents/C
 `.agents/manifest.json` is the machine-readable identity of the installed
 scaffold. `product_version` is the exact Lead Protocol release that produced
 the scaffold; `kernel_version` identifies the shipped `PROTOCOL_RULES.md`
-contract. `lead-protocol status` reports these separately as **Product
-Version** and **Kernel Version**, including in JSON as `productVersion` and
-`kernelVersion`.
+contract. `lead-protocol status` leads with the installed scaffold's product
+version and project name, immediately followed by the secondary kernel detail:
+
+```text
+Lead Protocol <productVersion> — <projectName>
+  Kernel: <kernelVersion> (technical detail)
+```
+
+This hierarchy remains readable without color. The running CLI binary's version
+is never substituted for the installed scaffold's product version.
 
 Framework files remain independently versioned. A Markdown header's `Version:`
 is the revision of that document or component, while `Protocol:` compatibility
 metadata describes the supported kernel floor or range. Neither value is a
-substitute for the manifest's exact product release. On an older installation
-without a manifest, status reports Product Version as `unknown` and reads the
-kernel only from `PROTOCOL_RULES.md`.
+substitute for the manifest's exact product release. A missing or invalid
+manifest leaves the product as literal `unknown`. Kernel identity comes from a
+valid `PROTOCOL_RULES.md` version header, falling back to a valid manifest's
+`kernel_version`, then `unknown` if neither is available.
+
+JSON output is unchanged: `productVersion` and `kernelVersion` remain separate,
+and `protocolVersion` remains a deprecated compatibility alias of `kernelVersion`.
 
 ## Executable session lifecycle
 
 The optional CLI turns the boot and close contract into three commands:
 
 ```bash
-npx @leadsolutions/lead-protocol@2.2.0 session open \
+npx @leadsolutions/lead-protocol@2.3.0 session open \
   --actor judge --agent codex --topic "Try the lifecycle" --json
 
 echo "A self-contained checkpoint body" | \
-  npx @leadsolutions/lead-protocol@2.2.0 checkpoint \
+  npx @leadsolutions/lead-protocol@2.3.0 checkpoint \
     --actor judge --agent codex --title first-checkpoint --json
 
-npx @leadsolutions/lead-protocol@2.2.0 session close \
+npx @leadsolutions/lead-protocol@2.3.0 session close \
   --actor judge --agent codex \
   --journal not-significant --status stable \
   --last-action "Verified the lifecycle." --pending-step None \
@@ -189,7 +200,7 @@ npx @leadsolutions/lead-protocol@2.2.0 session close \
 
 # Start a clean second session. The JSON receipt includes the terminal handoff
 # from the first session under `previousHandoff`, proving immediate resume.
-npx @leadsolutions/lead-protocol@2.2.0 session open \
+npx @leadsolutions/lead-protocol@2.3.0 session open \
   --actor judge --agent codex --topic "Resume from prior handoff" --json
 ```
 
@@ -223,7 +234,7 @@ interrupted operations. Codex and the maintainer turned those findings into
 public fixes and regression tests.
 
 That hardening first shipped in `v2.1.2` and remains part of the current
-`v2.2.0` release. `v2.1.1` is immutable and does not contain those fixes. The
+`v2.3.0` release. `v2.1.1` is immutable and does not contain those fixes. The
 model configuration, Codex thread ID, findings, and validation are recorded in
 the [public adversarial review](docs/build-week-2026/gpt-5.6-lifecycle-review.md).
 
@@ -242,8 +253,8 @@ Use the CLI's framework update command to retain project rules, decisions, sessi
 history and actor-local state:
 
 ```bash
-npx --yes @leadsolutions/lead-protocol@2.2.0 update --dry-run
-npx --yes @leadsolutions/lead-protocol@2.2.0 update --yes
+npx --yes @leadsolutions/lead-protocol@2.3.0 update --dry-run
+npx --yes @leadsolutions/lead-protocol@2.3.0 update --yes
 ```
 
 `init` is for new installations. It refuses any existing `.agents` entry unless
@@ -274,9 +285,14 @@ For Windows PowerShell, use equivalent `Copy-Item` commands and run the same val
 
 ### Checking which version you have
 
-Run `lead-protocol status` or read `.agents/manifest.json` for the installed
-product and kernel versions. The kernel may remain unchanged across product
-releases. Match the product version to its published release and versioned
+Run `lead-protocol status`: the first non-empty line shows the installed
+scaffold's product version and project; the next line shows the kernel as a
+technical detail. You can also read `.agents/manifest.json`. The CLI binary's
+version does not replace the scaffold identity, and an unavailable product
+version stays `unknown`. Use `lead-protocol status --json` for the unchanged
+machine-readable fields and fallbacks described above. The kernel may remain
+unchanged across product releases. Match the product version to its published
+release and versioned
 [`CHANGELOG.md`](CHANGELOG.md) entry; an `Unreleased` entry describes pending
 work and is not an installed release identifier.
 
@@ -306,6 +322,17 @@ Full detail: `.agents/PROTOCOL_RULES.md §P3 — Three-layer state model`.
 
 </details>
 
+### State file integrity
+
+The shared logs (`JOURNAL.md`, `LESSONS.md`, `decisions.jsonl`) are append-only at the tail, and the kernel defines three integrity invariants for them (`PROTOCOL_RULES.md §P3 Integrity invariants`): corrections are new entries (never rewrites of history), every append ends with a final newline, and structural corruption blocks new appends until repaired.
+
+Enforcement comes in two layers:
+
+- **Validation.** `python .agents/scripts/validate_state.py` (or `npx @leadsolutions/lead-protocol validate`) works in a plain local directory without Git. It checks conflict markers outside valid Markdown fences, missing final newlines on append-only files, and duplicated H1 headers outside fences in Markdown logs, alongside JSON-schema validation. JSONL is always parsed as JSONL. The bundled pre-commit hook and the CI workflow run the same checks.
+- **Optional merge handling (git projects).** The template ships `.agents/.gitattributes` with `merge=union` for the three append-only logs, which combines conflicting lines with arbitrary ordering. Same-heading Markdown entries can collapse into one entry, and byte-identical JSONL lines can deduplicate. Distinguishable headings (timestamp plus actor, agent, and session ID) reduce collisions but do not guarantee atomic or lossless entry preservation. `sessions/active_sessions.md` is deliberately excluded (its rows are removed on session close, and a union merge would resurrect them). Details and limitations: `.agents/modules/git-substrate.md §M-git-8`.
+
+Limitations: these checks catch structural corruption, not semantic mistakes. A merge that combines two half-written entries into valid-looking text, or an entry whose content is simply wrong, still requires human review. Neither append-at-tail nor validation provides locking. Git-specific post-merge guidance is in the optional `git-substrate` module.
+
 ---
 
 ## How agents boot in your project
@@ -324,7 +351,7 @@ Every compliant agent reads, in order:
 
 `PROTOCOL_RULES.md` itself is read **on demand**, not in the baseline — `CORE_RULES.md` points agents there when needed. This keeps baseline cost bounded. See `PROTOCOL_RULES.md §P-Access` for the full load contract.
 
-**First run (Unreleased source change):** in interactive consumer sessions, if `PROJECT_RULES.md` is still the pristine template, the agent does not silently proceed. It runs a short setup interview, fills in your project identity, and only then handles your request. See `PROTOCOL_RULES.md §P10`. You can configure the file by hand, or reply `later` / `skip` to defer for this session. Non-interactive sessions warn without writing configuration. The source sentinel exempts this framework repository and must not be copied into consumers. This is an agent instruction contract, not new CLI runtime enforcement; the stable v2.2.0 quick-start commands above do not yet deliver this unreleased change.
+**First run (Unreleased source change):** in interactive consumer sessions, if `PROJECT_RULES.md` is still the pristine template, the agent does not silently proceed. It runs a short setup interview, fills in your project identity, and only then handles your request. See `PROTOCOL_RULES.md §P10`. You can configure the file by hand, or reply `later` / `skip` to defer for this session. Non-interactive sessions warn without writing configuration. The source sentinel exempts this framework repository and must not be copied into consumers. This is an agent instruction contract, not new CLI runtime enforcement; the stable v2.3.0 quick-start commands above do not yet deliver this unreleased change.
 
 The universal `AGENTS.md` pointer and tool-specific compatibility pointers such as `CLAUDE.md` let agent tools discover `.agents/` without custom configuration.
 
@@ -356,6 +383,7 @@ Patch bumps (Z) never break anything. Minor bumps (Y) may introduce new features
 | Version | Highlights |
 |---|---|
 | **Unreleased** | Instruction-only first-run setup gate (`§P10`), before module loading; preserves configured values, clarifies required answers, supports session-only deferral and non-interactive warning/no configuration writes, and exempts framework source. No new release version is assigned. |
+| **2.3.0** | Optional execution evidence, primary product status, concurrent worktree guidance, and bounded append-only integrity/union handling. Kernel 2.1.1; git-substrate 1.4.0. |
 | **2.2.0** | Adds state-preserving CLI `update`, refuses accidental reinitialization of existing projects, and validates static path hazards before writes (#50, building on #26; addresses #25 and #40). Kernel remains 2.0.2. |
 | **2.1.5** | Corrects CLI validation of populated handoffs containing placeholder examples (#49), keeps SPDX identifiers consistent, includes the fast-uri lockfile update (#48), and verifies immutable npm publication plus installed consumer behavior. Kernel remains 2.0.2. |
 | **2.1.4** | Adds explicit installed product/kernel identity through `.agents/manifest.json`, corrects human and JSON status reporting with a safe legacy fallback, and reconciles branch-ordering prose with the backward-compatible eight-item handoff checklist. Kernel 2.0.2; git-substrate module 1.2.2. |
@@ -413,3 +441,8 @@ Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 ---
 
 *Built by [mmilanez](https://github.com/mmilanez) — born from managing AI agents across 100+ repositories.*
+
+Execution evidence for implementation handoffs is documented in
+[the protocol's session-close contract](.agents/PROTOCOL_RULES.md#execution-evidence--session-closeouts), with
+[portable schema](.agents/schemas/execution-evidence.schema.json) and checkpoint/close CLI support. Evidence
+is globally optional for compatibility; implementation completion records execution or explicit inability reasons.

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, realpathSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { closeSession, createCheckpoint, LifecycleError, openSession, parseActiveSessions } from "../dist/lib/session-lifecycle.js";
 
 function fixture(newline = "\n", peer = true) {
-  const root = mkdtempSync(path.join(os.tmpdir(), "lp-lifecycle-"));
+  const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), "lp-lifecycle-")));
   const agents = path.join(root, ".agents");
   mkdirSync(path.join(agents, "modules"), { recursive: true });
   mkdirSync(path.join(agents, "sessions"), { recursive: true });
@@ -22,6 +22,7 @@ function fixture(newline = "\n", peer = true) {
     "# active_sessions.md — Sessions currently live", "", "| Session ID | Agent | Started | Topic | Last checkpoint |",
     "|---|---|---|---|---|", ...rows, "---", "", "## Usage", "Keep this text byte-for-byte.", "",
   ].join(newline));
+  cpSync(new URL("../../.agents/schemas", import.meta.url), path.join(agents, "schemas"), { recursive: true });
   return root;
 }
 
@@ -404,3 +405,151 @@ test("a second closed session in the same minute gets a deterministic suffix", {
     assert.equal(second.sessionId, "2026-07-18-0800-codex-2");
   });
 });
+
+const evidence = { checks: [{ command: 'npm test', cwd: '/repo', result: 'passed' }, { command: 'npm run e2e', result: 'blocked', reason: 'No sandbox' }] };
+const closeOptions = { actor: 'marco', agent: 'codex', journal: 'not-significant', status: 'STABLE', lastAction: 'Validated', pendingStep: 'Review', confirmChecklist: true };
+function stateSnapshot(root) {
+  return Object.fromEntries(readdirSync(path.join(root, '.agents'), { recursive: true, withFileTypes: true }).filter(e => e.isFile()).map(e => {
+    const file = path.join(e.parentPath ?? e.path, e.name); return [file, readFileSync(file, 'utf8')];
+  }));
+}
+test('checkpoint and close persist evidence with discoverable references, preserving the handoff shape', async () => {
+  await inFixture({}, root => {
+    const opened = openSession({ actor: 'marco', agent: 'codex', topic: 'Evidence' });
+    const checkpoint = createCheckpoint({ actor: 'marco', agent: 'codex', title: 'evidence', body: 'Executed checks', evidence });
+    const body = readFileSync(checkpoint.checkpoint, 'utf8');
+    assert.match(body, /## Execution Evidence/);
+    assert.deepEqual(JSON.parse(body.match(/```json\n([\s\S]*?)\n```/)[1]).execution_evidence, evidence);
+    const closed = closeSession({ ...closeOptions, evidence });
+    assert.deepEqual(closed.execution_evidence, evidence);
+    assert.equal(closed.checkpoint, path.basename(checkpoint.checkpoint));
+    const pair = path.join(root, '.agents/local/marco/codex');
+    assert.deepEqual(JSON.parse(readFileSync(path.join(pair, 'receipts', `${opened.sessionId}-close.json`), 'utf8')), closed);
+    const handoff = readFileSync(path.join(pair, 'handoff.md'), 'utf8');
+    assert.match(handoff, new RegExp(path.basename(checkpoint.checkpoint)));
+    assert.match(handoff, new RegExp(`${opened.sessionId}-close.json`));
+    assert.equal((handoff.match(/^- \[x\]/gm) ?? []).length, 8);
+    assert.doesNotMatch(handoff, /## Execution Evidence/);
+  });
+});
+
+test('invalid option, embedded JSON, duplicate evidence and broken schema fail before any state mutation', async () => {
+  await inFixture({}, root => {
+    openSession({ actor: 'marco', agent: 'codex', topic: 'Reject evidence' });
+    const checkpoint = { actor: 'marco', agent: 'codex', title: 'reject', body: 'Body' };
+    for (const invalid of [null, { checks: [{ command: 'test', result: 'blocked', reason: ' ' }] }, { browser_validation: { performed: false, result: 'passed' } }, { typo: 1 }]) {
+      const before = stateSnapshot(root);
+      assert.throws(() => createCheckpoint({ ...checkpoint, evidence: invalid }), /evidence/i);
+      assert.throws(() => closeSession({ ...closeOptions, evidence: invalid }), /evidence/i);
+      assert.deepEqual(stateSnapshot(root), before);
+    }
+    for (const body of ['## Execution Evidence\n\n```json\n{oops}\n```', '## Execution Evidence\nmissing JSON']) {
+      const before = stateSnapshot(root);
+      assert.throws(() => createCheckpoint({ ...checkpoint, body }), /evidence/i);
+      assert.deepEqual(stateSnapshot(root), before);
+    }
+    const body = '## Execution Evidence\n\n```json\n{"execution_evidence":{}}\n```';
+    assert.throws(() => createCheckpoint({ ...checkpoint, body, evidence }), /evidence/i);
+    const schema = path.join(root, '.agents/schemas/execution-evidence.schema.json');
+    for (const invalid of ['{broken', '{"type":"invalid-schema-type"}']) {
+      writeFileSync(schema, invalid);
+      const before = stateSnapshot(root);
+      assert.throws(() => createCheckpoint({ ...checkpoint, evidence }), /evidence/i);
+      assert.throws(() => closeSession({ ...closeOptions, evidence }), /evidence/i);
+      assert.deepEqual(stateSnapshot(root), before);
+    }
+  });
+});
+
+test('legacy omission preserves exact checkpoint and receipt shapes without needing evidence schema', async () => {
+  await inFixture({}, root => {
+    rmSync(path.join(root, '.agents/schemas/execution-evidence.schema.json'));
+    const now = new Date('2026-07-18T08:00:00.000Z');
+    const opened = openSession({ actor: 'marco', agent: 'codex', topic: 'Legacy', now });
+    const checkpoint = createCheckpoint({ actor: 'marco', agent: 'codex', title: 'legacy', body: ' Body ', now });
+    assert.equal(readFileSync(checkpoint.checkpoint, 'utf8'), `# Checkpoint — legacy\n\n> Timestamp: ${now.toISOString()}\n> Agent: ${opened.pair.signature}\n> Actor: marco\n> Session: \`${opened.sessionId}\`\n\nBody\n`);
+    assert.deepEqual(closeSession({ ...closeOptions, now }), { schemaVersion: 1, operation: 'session.close', timestamp: now.toISOString(), pair: opened.pair, sessionId: opened.sessionId, journal: 'not-significant', validation: { handoff: 'passed', decisions: 'passed', checklist: 'passed' } });
+  });
+});
+
+for (const newline of ['\n', '\r\n']) {
+  test(`legacy fenced body preserves exact checkpoint bytes without a schema (${JSON.stringify(newline)})`, async () => {
+    await inFixture({}, root => {
+      rmSync(path.join(root, '.agents/schemas/execution-evidence.schema.json'));
+      const now = new Date('2026-07-18T08:00:00.000Z');
+      const opened = openSession({ actor: 'marco', agent: 'codex', topic: 'Legacy fences', now });
+      const body = ['Legacy  body', '', '````markdown', '## Execution Evidence', '```json', '{"execution_evidence":{}}', '```', '````', '', '~~~', '## Execution Evidence', 'placeholder', '~~~'].join(newline);
+      const checkpoint = createCheckpoint({ actor: 'marco', agent: 'codex', title: 'legacy-fences', body, now });
+      assert.equal(readFileSync(checkpoint.checkpoint, 'utf8'), `# Checkpoint — legacy-fences\n\n> Timestamp: ${now.toISOString()}\n> Agent: ${opened.pair.signature}\n> Actor: marco\n> Session: \`${opened.sessionId}\`\n\n${body}\n`);
+    });
+  });
+}
+
+for (const [label, body] of [
+  ['open-backtick', '````markdown\nlegacy'],
+  ['open-tilde', '~~~~markdown\nlegacy'],
+  ['trim-backtick', '    ````markdown\nlegacy'],
+  ['trim-tilde', '\t~~~~markdown\nlegacy'],
+  ['trim-duplicate', '   ## Execution Evidence\n\n```json\n{"execution_evidence":{}}\n```'],
+]) {
+  test(`explicit composition refuses ${label} before mutation; omission preserves legacy bytes`, async () => {
+    const { parseEvidenceMarkdown } = await import('../dist/lib/execution-evidence.js');
+    await inFixture({}, root => {
+      const opened = openSession({ actor: 'marco', agent: 'codex', topic: 'Composition' });
+      const opts = { actor: 'marco', agent: 'codex', title: label, body, now: new Date('2026-09-12T09:15:00Z') };
+      const before = stateSnapshot(root);
+      let failure;
+      try {
+        const written = createCheckpoint({ ...opts, evidence });
+        let parsed;
+        try { parsed = parseEvidenceMarkdown(readFileSync(written.checkpoint, 'utf8'), path.join(root, '.agents/schemas')); }
+        catch (error) { parsed = error.message; }
+        console.log('UNSAFE WRITER SUCCESS', label, 'parsed:', parsed);
+      } catch (error) { failure = error; }
+      assert.ok(failure, 'writer must refuse unsafe explicit evidence composition');
+      assert.match(failure.message, /evidence/i);
+      assert.deepEqual(stateSnapshot(root), before);
+      // An existing guard must not mask the composition error: refusal precedes lock mutation.
+      const guard = path.join(root, '.agents/sessions/.lifecycle-transaction');
+      mkdirSync(guard);
+      assert.throws(() => createCheckpoint({ ...opts, evidence }), /evidence/i);
+      assert.ok(existsSync(guard));
+      rmSync(guard, { recursive: true });
+      const legacy = createCheckpoint(opts);
+      assert.equal(readFileSync(legacy.checkpoint, 'utf8'), `# Checkpoint — ${label}\n\n> Timestamp: ${opts.now.toISOString()}\n> Agent: ${opened.pair.signature}\n> Actor: marco\n> Session: \`${opened.sessionId}\`\n\n${body.trim()}\n`);
+    });
+  });
+}
+
+for (const [label, newline] of [['LF', '\n'], ['CRLF', '\r\n']]) {
+  test(`embedded evidence refuses exact leading-indented three-backtick reproduction without state mutation (${label})`, async () => {
+    const { parseEvidenceMarkdown, renderEvidenceMarkdown } = await import('../dist/lib/execution-evidence.js');
+    await inFixture({ newline }, root => {
+      openSession({ actor: 'marco', agent: 'codex', topic: 'Embedded evidence' });
+      const schemas = path.join(root, '.agents/schemas');
+      const body = ('    ```\nordinary text\n' + renderEvidenceMarkdown(evidence)).replace(/\n/g, newline);
+      assert.deepEqual(parseEvidenceMarkdown(body, schemas), evidence);
+      const before = stateSnapshot(root);
+      const entries = readdirSync(path.join(root, '.agents'), { recursive: true });
+      assert.throws(() => createCheckpoint({ actor: 'marco', agent: 'codex', title: 'embedded-hidden', body }), /evidence/i);
+      assert.deepEqual(stateSnapshot(root), before);
+      assert.deepEqual(readdirSync(path.join(root, '.agents'), { recursive: true }), entries);
+    });
+  });
+
+  test(`embedded evidence saved artifact round-trips without duplication (${label})`, async () => {
+    const { parseEvidenceMarkdown, renderEvidenceMarkdown } = await import('../dist/lib/execution-evidence.js');
+    await inFixture({ newline }, root => {
+      openSession({ actor: 'marco', agent: 'codex', topic: 'Embedded evidence' });
+      const body = ('Narrative\n' + renderEvidenceMarkdown(evidence)).replace(/\n/g, newline);
+      const opts = { actor: 'marco', agent: 'codex', title: 'embedded-valid', body };
+      const before = stateSnapshot(root);
+      assert.throws(() => createCheckpoint({ ...opts, evidence }), /not both/);
+      assert.deepEqual(stateSnapshot(root), before);
+      const saved = readFileSync(createCheckpoint(opts).checkpoint, 'utf8');
+      assert.deepEqual(parseEvidenceMarkdown(saved, path.join(root, '.agents/schemas')), evidence);
+      assert.equal(saved.split('## Execution Evidence').length - 1, 1);
+      assert.ok(saved.endsWith(body.trim() + '\n'));
+    });
+  });
+}

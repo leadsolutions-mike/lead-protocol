@@ -36,9 +36,9 @@ test('setup preserves configured values and clarifies required answers', () => {
   assert.match(read(root, '.agents/modules/meta-repo.md'), /Mixed state[^\n]*§P10[^\n]*Name[^\n]*§J8/);
 });
 test('unreleased setup keeps product and kernel release metadata unchanged', () => {
-  assert.equal(JSON.parse(read(root, 'cli/package.json')).version, '2.2.0');
-  assert.equal(JSON.parse(read(root, '.agents/manifest.json')).kernel_version, '2.0.2');
-  assert.match(read(root, 'README.md'), /Current version: \*\*2\.2\.0\*\*/);
+  assert.equal(JSON.parse(read(root, 'cli/package.json')).version, '2.3.0');
+  assert.equal(JSON.parse(read(root, '.agents/manifest.json')).kernel_version, '2.1.1');
+  assert.match(read(root, 'README.md'), /Current version: \*\*2\.3\.0\*\*/);
   assert.match(read(root, 'README.md'), /\| \*\*Unreleased\*\* \|.*§P10/);
 });
 for (const mode of ['direct copy', 'CLI']) test(`${mode} ships setup without source exemption and preserves configured local state on update`, t => {

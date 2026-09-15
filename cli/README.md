@@ -159,32 +159,46 @@ lead-protocol handoff --json               # JSON output
 
 ### `validate`
 
-Validate protocol state files against their JSON schemas.
+Validate protocol state files: JSON-schema validation for `decisions.jsonl` and `handoff.md`, plus structural integrity checks on every state file (unresolved merge conflict markers outside valid Markdown fences; missing final newline on the append-only files; duplicated top-level header on the markdown logs).
 
 ```bash
 lead-protocol validate                         # Auto-discover all
 lead-protocol validate .agents/decisions.jsonl  # Specific file (decisions.jsonl)
 lead-protocol validate path/to/handoff.md        # Specific file (handoff.md)
+lead-protocol validate .agents/JOURNAL.md        # Specific file (append-only log)
 ```
 
-Recognized files are matched by name: `decisions.jsonl` and `handoff.md`. Auto-discover checks `.agents/decisions.jsonl` plus every pair's `handoff.md`.
+Validation works in a plain local directory with no Git executable. JSONL is never treated as fenced Markdown.
+
+Recognized files are matched by name: `decisions.jsonl`, `handoff.md`, `JOURNAL.md`, `LESSONS.md`, and `active_sessions.md`. Auto-discover checks `.agents/decisions.jsonl`, `.agents/JOURNAL.md`, `.agents/LESSONS.md`, `.agents/sessions/active_sessions.md`, plus every pair's `handoff.md`.
 
 Exit codes: `0` = passed, `1` = validation errors, `2` = config errors.
 
 ### `status`
 
-One-screen summary of the current protocol state. Product identity comes from
-`.agents/manifest.json`; kernel identity is reported separately from
-`PROTOCOL_RULES.md`. Legacy installations without a manifest report product
-version `unknown` and never treat the `CORE_RULES.md` document revision as the
-protocol version.
+One-screen summary of the current protocol state. The first non-empty line
+leads with the installed scaffold's product version from `.agents/manifest.json`
+and the project name. The kernel follows immediately as a secondary detail,
+including when color is disabled:
+
+```text
+Lead Protocol <productVersion> — <projectName>
+  Kernel: <kernelVersion> (technical detail)
+```
+
+The running CLI binary's version is never substituted for the scaffold's
+product version. A missing or invalid manifest leaves the product as literal
+`unknown`. The kernel comes from a valid `PROTOCOL_RULES.md` version header,
+falling back to a valid manifest's `kernel_version`, then `unknown`. The
+`CORE_RULES.md` document revision is never used for either identity.
 
 ```bash
 lead-protocol status         # Formatted output
 lead-protocol status --json  # JSON output
 ```
 
-JSON output exposes `productVersion` and `kernelVersion` as separate fields.
+JSON output is unchanged and exposes `productVersion` and `kernelVersion` as
+separate fields.
 For compatibility with existing v2.1.x consumers, `protocolVersion` remains as
 a deprecated alias of `kernelVersion`; it never reads the `CORE_RULES.md`
 document revision.
@@ -214,3 +228,17 @@ The CLI manages `CLAUDE.md` and `AGENTS.md` using XML-style tags:
 
 Apache-2.0
 
+
+### Execution evidence on checkpoints and closeouts
+
+Use `checkpoint --title verified --file checkpoint.md --evidence evidence.json` or add
+`--evidence evidence.json` to `session close` with its existing required close flags. The input is the
+portable evidence object, without an outer key. See the shipped `.agents/PROTOCOL_RULES.md` execution-evidence
+section and `.agents/schemas/execution-evidence.schema.json` for fields and illustrative examples.
+
+The CLI validates supplied evidence before writes, appends one canonical JSON checkpoint section, or adds
+`execution_evidence` to the close receipt. Evidence-bearing closes reference their receipt and latest checkpoint
+in the existing handoff context. Publish a shared close checkpoint with durable evidence for cross-machine
+handoffs. Browser evidence is optional; unperformed checks require a reason and never imply success.
+Omission preserves legacy behavior. Empty/omitted evidence and successful state validation do not prove task
+completion or test execution. `validate` retains its handoff/decisions scope; it does not scan evidence artifacts.
